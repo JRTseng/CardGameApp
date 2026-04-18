@@ -14,6 +14,7 @@ export function cardCanBeSha(card: Card, player: Player): boolean {
   if (isShaType(card.type)) return true;
   if (player.character.id === 'guanyu' && cardColor(card) === 'red') return true;
   if (player.character.id === 'zhaoyun' && isBasicType(card.type)) return true;
+  if (player.character.id === 'yuanshu' && card.type === 'tao') return true; // 袁術 僭越
   return false;
 }
 
@@ -21,6 +22,8 @@ export function cardCanBeSha(card: Card, player: Player): boolean {
 export function cardCanBeShan(card: Card, player: Player): boolean {
   if (card.type === 'shan') return true;
   if (player.character.id === 'zhaoyun' && isBasicType(card.type)) return true;
+  if (player.character.id === 'guanping' && card.suit === '♥') return true; // 關平 輔佐
+  if (player.character.id === 'zuoci' && card.suit === '♦') return true;    // 左慈 幻化
   return false;
 }
 
@@ -57,8 +60,13 @@ export function effectiveDistance(fromId: number, toId: number, players: Player[
 }
 
 /** Attack range for a player */
-export function attackRange(player: Player): number {
+export function attackRange(player: Player, allPlayers?: Player[]): number {
   if (player.character.id === 'maochao') return 2;
+  if (player.character.id === 'lingtong') return 2;    // 凌統 馬術
+  if (player.character.id === 'xiahouyan') return 3;   // 夏侯淵 神速
+  if (player.character.id === 'gongsunzan' && allPlayers) {
+    return Math.max(1, allPlayers.filter(p => p.isAlive).length - 1); // 公孫瓚 義從
+  }
   if (player.equipment.weapon?.type === 'qinglong_dao') return 3;
   return 1;
 }
@@ -66,7 +74,7 @@ export function attackRange(player: Player): number {
 /** Whether fromId can attack toId with 殺 */
 export function inAttackRange(fromId: number, toId: number, players: Player[]): boolean {
   const attacker = players.find(p => p.id === fromId)!;
-  return effectiveDistance(fromId, toId, players) <= attackRange(attacker);
+  return effectiveDistance(fromId, toId, players) <= attackRange(attacker, players);
 }
 
 /** Check if 諸葛亮 空城 blocks this card type */
@@ -122,12 +130,13 @@ export function getTrickTargets(
   }
 }
 
-/** Hand limit = current HP (+2 for 周瑜 英姿 / 袁紹 雄才; fixed at maxHp for 呂蒙 克己) */
+/** Hand limit = current HP (+2 for 周瑜/袁紹; +1 for 鄧艾; fixed at maxHp for 呂蒙) */
 export function handLimit(player: Player): number {
   const base = Math.max(player.hp, 1);
   if (player.character.id === 'zhouyu') return base + 2;
   if (player.character.id === 'yuanshao') return base + 2;
   if (player.character.id === 'lvmeng') return Math.max(player.maxHp, 1); // 克己: fixed at maxHp
+  if (player.character.id === 'dengai') return base + 1; // 屯田
   return base;
 }
 
@@ -139,8 +148,9 @@ export function canPlayCard(card: Card, player: Player, state: GameState): boole
 
   switch (card.category) {
     case 'basic':
-      if (card.type === 'tao') return player.hp < player.maxHp;
+      // Check SHA-eligible first (covers 袁術 tao-as-SHA, 關羽 武聖, 趙雲 龍膽)
       if (cardCanBeSha(card, player)) return canUseSha(player) && getShaTargets(player, state).length > 0;
+      if (card.type === 'tao') return player.hp < player.maxHp;
       return false;
     case 'trick':
       // 華佗 青嚢: ♣ trick cards can be used as 桃 when HP < maxHp

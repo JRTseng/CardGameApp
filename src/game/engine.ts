@@ -164,7 +164,7 @@ function checkDeath(state: GameState, targetId: number, killerId: number): GameS
   if (killer) {
     if (target.role === 'rebel') {
       const s = drawN({ ...state, players, log }, killer.id, 3);
-      return checkWin({ ...s, log: [...s.log, `${killer.name} 擊殺反賊，摸3張牌`] });
+      return checkWin(maybeSunjian({ ...s, log: [...s.log, `${killer.name} 擊殺反賊，摸3張牌`] }));
     }
     if (target.role === 'loyalist' && killer.role === 'lord') {
       log.push(`${killer.name}（主公）錯殺忠臣，棄置所有手牌及裝備！`);
@@ -176,11 +176,18 @@ function checkDeath(state: GameState, targetId: number, killerId: number): GameS
       if (eq.armor) { discards.push(eq.armor); lord.equipment.armor = null; }
       if (eq.horse_minus) { discards.push(eq.horse_minus); lord.equipment.horse_minus = null; }
       if (eq.horse_plus) { discards.push(eq.horse_plus); lord.equipment.horse_plus = null; }
-      return checkWin({ ...state, players, log, discardPile: [...state.discardPile, ...discards] });
+      return checkWin(maybeSunjian({ ...state, players, log, discardPile: [...state.discardPile, ...discards] }));
     }
   }
 
-  return checkWin({ ...state, players, log });
+  return checkWin(maybeSunjian({ ...state, players, log }));
+}
+
+function maybeSunjian(state: GameState): GameState {
+  const sunjian = state.players.find(p => p.isAlive && p.character.id === 'sunjian');
+  if (!sunjian) return state;
+  const s = drawN(state, sunjian.id, 2);
+  return { ...s, log: [...s.log, `孫堅 英武：摸2張牌`] };
 }
 
 function checkWin(state: GameState): GameState {
@@ -279,6 +286,7 @@ export function initGame(humanCharacterId: string, totalPlayers = 4, humanRole: 
       skillUsed: false,
       roleRevealed: role === 'lord',
       givenCards: 0,
+      skipNextDraw: false,
     });
   }
 
@@ -317,10 +325,32 @@ export function initGame(humanCharacterId: string, totalPlayers = 4, humanRole: 
 
 function startDrawPhase(state: GameState): GameState {
   const p = state.players[state.currentPlayerIndex];
+
+  // 曹仁 守城: heal 1 at start of turn if below max HP
+  let st = state;
+  if (p.character.id === 'caoren' && p.hp < p.maxHp) {
+    const players = clonePlayers(st.players);
+    const cp = players[st.currentPlayerIndex];
+    cp.hp = Math.min(cp.hp + 1, cp.maxHp);
+    st = { ...st, players, log: [...st.log, `曹仁 守城：回合開始回復1血 (${cp.hp}/${cp.maxHp})`] };
+  }
+
+  // 徐晃 斷糧: skip draw phase if flagged
+  if (p.skipNextDraw) {
+    const players = clonePlayers(st.players);
+    players[st.currentPlayerIndex].skipNextDraw = false;
+    return {
+      ...st,
+      players,
+      phase: 'play',
+      log: [...st.log, `${p.name} 因【斷糧】跳過摸牌階段`],
+    };
+  }
+
   const count = (p.character.id === 'diaochan' || p.character.id === 'zhenji') ? 3
               : p.character.id === 'dongzhuo' ? 1
               : 2;
-  const s = drawN(state, p.id, count);
+  const s = drawN(st, p.id, count);
   return {
     ...s,
     phase: 'play',
@@ -361,6 +391,7 @@ function advanceToNextTurn(state: GameState): GameState {
   np.shaCount = 0;
   np.skillUsed = false;
   np.givenCards = 0;
+  // skipNextDraw is cleared in startDrawPhase when triggered
 
   const newRound = nextIdx <= state.currentPlayerIndex ? state.round + 1 : state.round;
 
@@ -710,13 +741,22 @@ function playCardOnTarget(state: GameState, playerId: number, card: Card, target
     // 張角 雷擊：黑色殺傷害+1
     const isZhangjue = player.character.id === 'zhangjue';
     if (isZhangjue && (c.suit === '♠' || c.suit === '♣')) dmg += 1;
+    // 龐德 猛進：每回合第一張殺傷害+1
+    const isPangde = player.character.id === 'pangde';
+    if (isPangde && player.shaCount === 0) dmg += 1;
+    // 廖化 追襲：目標1血時無法閃避
+    const isLiaohua = player.character.id === 'liaohua';
     // 呂布 無雙：目標需出2張閃
     const isLubu = player.character.id === 'lubu';
+
+    const shanNeeded = isLubu ? 2 : (isLiaohua && target.hp === 1) ? 99 : undefined;
 
     const extraNote = [
       isXuchu && player.hp <= Math.floor(player.maxHp / 2) ? '裸衣+1' : '',
       isHuangzhong && target.hp <= Math.floor(target.maxHp / 2) ? '烈弓+1' : '',
       isZhangjue && (c.suit === '♠' || c.suit === '♣') ? '雷擊+1' : '',
+      isPangde && player.shaCount === 0 ? '猛進+1' : '',
+      isLiaohua && target.hp === 1 ? '追襲(不可閃)' : '',
     ].filter(Boolean).map(s => `（${s}）`).join('');
     let result: GameState = {
       ...s,
@@ -730,12 +770,14 @@ function playCardOnTarget(state: GameState, playerId: number, card: Card, target
         sourceCardId: c.id,
         isFire,
         damage: dmg,
-        shanNeeded: isLubu ? 2 : undefined,
+        shanNeeded,
         message: isLubu
           ? `遭受【無雙】！需出2張【閃】方可閃避！`
-          : isFire
-            ? `遭受【火殺】！請出【閃】（仁王盾無效），否則受${dmg}點火焰傷害`
-            : `遭受【殺】攻擊！請出【閃】，否則受1點傷害`,
+          : (isLiaohua && target.hp === 1)
+            ? `遭受【追襲】！目標1血，無法閃避！`
+            : isFire
+              ? `遭受【火殺】！請出【閃】（仁王盾無效），否則受${dmg}點火焰傷害`
+              : `遭受【殺】攻擊！請出【閃】，否則受1點傷害`,
       },
     };
     // 太史慈 天義：使用殺後摸1張牌
@@ -838,6 +880,8 @@ function respondWithCard(state: GameState, actorId: number, cardId: string): Gam
   const actor = state.players.find(p => p.id === actorId)!;
 
   if (pa.type === 'respond_sha' || pa.type === 'respond_wanjian') {
+    // 廖化 追襲：shanNeeded >= 99 → cannot dodge
+    if (pa.type === 'respond_sha' && (pa.shanNeeded ?? 0) >= 99) return state;
     const card = actor.hand.find(c => c.id === cardId);
     // 大喬 流離: any card can dodge SHA
     const canDodge = card && (cardCanBeShan(card, actor) || actor.character.id === 'daqiao');
@@ -929,6 +973,38 @@ function skipResponse(state: GameState): GameState {
       s2 = drawN(s2, pa.sourcePlayerId, 1);
       s2 = { ...s2, log: [...s2.log, `魏延 狂骨：摸1張牌`] };
     }
+    // 徐晃 斷糧：殺命中後目標下回合跳過摸牌
+    if (attackerNow?.isAlive && attackerNow.character.id === 'xuhuang') {
+      const victimNow = s2.players.find(p => p.id === pa.actorId);
+      if (victimNow?.isAlive) {
+        const players3 = clonePlayers(s2.players);
+        players3.find(p => p.id === pa.actorId)!.skipNextDraw = true;
+        s2 = { ...s2, players: players3, log: [...s2.log, `徐晃 斷糧：${victimNow.name} 下回合跳過摸牌`] };
+      }
+    }
+    // 孫策 激將：殺命中後奪取目標1張裝備
+    if (attackerNow?.isAlive && attackerNow.character.id === 'sunce') {
+      const victimNow = s2.players.find(p => p.id === pa.actorId);
+      if (victimNow?.isAlive) {
+        const eqSlots: (keyof Equipment)[] = ['weapon', 'armor', 'horse_minus', 'horse_plus'];
+        const slots = eqSlots.filter(k => victimNow.equipment[k]);
+        if (slots.length > 0) {
+          const slot = slots[Math.floor(Math.random() * slots.length)];
+          const stolen = victimNow.equipment[slot]!;
+          const players3 = clonePlayers(s2.players);
+          players3.find(p => p.id === pa.actorId)!.equipment[slot] = null;
+          players3.find(p => p.id === pa.sourcePlayerId)!.hand.push(stolen);
+          s2 = { ...s2, players: players3, log: [...s2.log, `孫策 激將：奪取 ${victimNow.name} 的【${stolen.name}】`] };
+        }
+      }
+    }
+    // 丁奉 雪襲：被殺命中後對攻擊者反彈1傷
+    if (s2.gameOver) return s2;
+    const victimFinal = s2.players.find(p => p.id === pa.actorId);
+    if (victimFinal?.isAlive && victimFinal.character.id === 'dingfeng') {
+      s2 = applyDamage(s2, pa.sourcePlayerId, 1, pa.actorId);
+      s2 = { ...s2, log: [...s2.log, `丁奉 雪襲：對 ${attackerNow?.name ?? ''} 反彈1點傷害`] };
+    }
     return s2;
   }
 
@@ -957,7 +1033,14 @@ function skipResponse(state: GameState): GameState {
 
 function resolveAfterDefend(state: GameState, pa: PendingAction): GameState {
   if (pa.type === 'respond_sha') {
-    return { ...state, pendingAction: null };
+    let s: GameState = { ...state, pendingAction: null };
+    // 張郃 巧變：成功閃避殺後摸1張牌
+    const defender = s.players.find(p => p.id === pa.actorId);
+    if (defender?.isAlive && defender.character.id === 'zhanghe') {
+      s = drawN(s, defender.id, 1);
+      s = { ...s, log: [...s.log, `張郃 巧變：閃避成功，摸1張牌`] };
+    }
+    return s;
   }
   if (pa.type === 'respond_wanjian') {
     return nextAoeTarget({ ...state, pendingAction: null }, 'respond_wanjian', pa.sourcePlayerId, pa.remainingTargets ?? []);
@@ -1159,6 +1242,8 @@ function aiRespond(state: GameState, actor: Player): GameState {
   const pa = state.pendingAction!;
 
   if (pa.type === 'respond_sha' || pa.type === 'respond_wanjian') {
+    // 廖化 追襲：無法閃避
+    if (pa.type === 'respond_sha' && (pa.shanNeeded ?? 0) >= 99) return skipResponse(state);
     // Try 閃
     const shan = actor.hand.find(c => cardCanBeShan(c, actor));
     if (shan) return respondWithCard(state, actor.id, shan.id);

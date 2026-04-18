@@ -67,7 +67,8 @@ export interface Player {
   shaCount: number;
   skillUsed: boolean;
   roleRevealed: boolean;
-  givenCards: number; // for 劉備 仁德
+  givenCards: number;
+  skipNextDraw?: boolean; // 徐晃 斷糧
 }
 
 export type PendingType =

@@ -22,8 +22,11 @@ export default function ActionPanel({ state, dispatch }: Props) {
     let responseCards: Card[] = [];
 
     if (pa.type === 'respond_sha' || pa.type === 'respond_wanjian') {
-      // 大喬 流離: any card can dodge
-      responseCards = human.character.id === 'daqiao' ? human.hand : human.hand.filter(c => cardCanBeShan(c, human));
+      // 廖化 追襲：shanNeeded >= 99 → undodgeable, no response cards
+      const undodgeable = pa.type === 'respond_sha' && (pa.shanNeeded ?? 0) >= 99;
+      if (!undodgeable) {
+        responseCards = human.character.id === 'daqiao' ? human.hand : human.hand.filter(c => cardCanBeShan(c, human));
+      }
     } else if (pa.type === 'respond_nanman' || pa.type === 'respond_juedou') {
       responseCards = human.hand.filter(c => cardCanBeSha(c, human));
     }
@@ -95,7 +98,7 @@ export default function ActionPanel({ state, dispatch }: Props) {
           ) : (
             <span>點選手牌使用</span>
           )}
-          <span className="text-teal-400">攻距:{attackRange(currentPlayer)}</span>
+          <span className="text-teal-400">攻距:{attackRange(currentPlayer, state.players)}</span>
           <span className="text-amber-400">{char.skill.name}</span>
         </div>
 
