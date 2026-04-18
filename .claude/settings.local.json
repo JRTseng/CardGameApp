@@ -23,7 +23,11 @@
       "Bash(bash *)",
       "Bash(export SHELL=/bin/bash)",
       "Bash(node_modules/.bin/tsc --noEmit)",
-      "Bash(node_modules/.bin/vite build *)"
+      "Bash(node_modules/.bin/vite build *)",
+      "Bash(npx tsx *)",
+      "Bash(cat vite.config.ts)",
+      "Bash(cat vite.config.js)",
+      "Bash(npm run *)"
     ]
   }
 }

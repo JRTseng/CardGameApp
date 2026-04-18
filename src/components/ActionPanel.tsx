@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { GameState, Card, Player } from '../types/game';
 import type { GameAction } from '../game/engine';
 import CardView from './CardView';
+import { CARD_DESCRIPTIONS } from '../data/cards';
 import { canPlayCard, cardCanBeSha, cardCanBeShan, needsTarget, attackRange } from '../game/rules';
 
 interface Props {
@@ -128,6 +129,17 @@ export default function ActionPanel({ state, dispatch }: Props) {
           )}
         </div>
 
+        {/* Card description */}
+        {state.selectedCardId && (() => {
+          const sel = currentPlayer.hand.find(c => c.id === state.selectedCardId);
+          const desc = sel ? CARD_DESCRIPTIONS[sel.type] : null;
+          return desc ? (
+            <div className="text-xs text-amber-300/80 bg-amber-950/40 rounded px-2 py-1 border border-amber-800/40">
+              【{sel!.name}】{desc}
+            </div>
+          ) : null;
+        })()}
+
         {/* Active skill panels */}
         {hasActiveSkill && char.id === 'sunquan' && (
           <ZhihengPanel player={currentPlayer} onConfirm={ids => dispatch({ type: 'SKILL_ZHIHENG', cardIds: ids })} />
@@ -158,6 +170,15 @@ export default function ActionPanel({ state, dispatch }: Props) {
             skillName="結姻"
             filterTarget={p => p.character.gender === 'male'}
             onConfirm={(tid, ids) => dispatch({ type: 'SKILL_GIVE_CARD', targetId: tid, cardIds: ids })}
+          />
+        )}
+
+        {/* 甘寧 奇襲 */}
+        {char.id === 'ganning' && !currentPlayer.skillUsed && currentPlayer.hand.length >= 1 && (
+          <QixiPanel
+            player={currentPlayer}
+            state={state}
+            onConfirm={(tid, cid) => dispatch({ type: 'SKILL_QIXI', targetId: tid, cardId: cid })}
           />
         )}
 
@@ -212,6 +233,46 @@ function ZhihengPanel({ player, onConfirm }: { player: Player; onConfirm: (ids: 
         className="w-full py-1 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 text-white rounded text-xs font-bold"
       >
         棄 {selected.length} 摸 {selected.length}
+      </button>
+    </div>
+  );
+}
+
+function QixiPanel({ player, state, onConfirm }: {
+  player: Player;
+  state: GameState;
+  onConfirm: (targetId: number, cardId: string) => void;
+}) {
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<number | null>(null);
+  const targets = state.players.filter(p => p.isAlive && p.id !== player.id && p.hand.length > 0);
+  if (targets.length === 0) return null;
+
+  return (
+    <div className="w-full border border-cyan-600 rounded-lg p-2 bg-cyan-950/50">
+      <div className="text-cyan-300 text-xs font-bold mb-1">甘寧 奇襲 — 棄1牌奪目標1牌</div>
+      <div className="flex gap-1 mb-1 flex-wrap">
+        {targets.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTargetId(t.id)}
+            className={`text-xs px-2 py-1 rounded border ${targetId === t.id ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-cyan-900 border-cyan-700 text-cyan-300'}`}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {player.hand.map(c => (
+          <CardView key={c.id} card={c} small selected={selectedCard === c.id} onClick={() => setSelectedCard(c.id)} />
+        ))}
+      </div>
+      <button
+        disabled={!selectedCard || targetId === null}
+        onClick={() => { if (selectedCard && targetId !== null) { onConfirm(targetId, selectedCard); setSelectedCard(null); setTargetId(null); } }}
+        className="w-full py-1 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 text-white rounded text-xs font-bold"
+      >
+        奇襲（棄1牌）
       </button>
     </div>
   );

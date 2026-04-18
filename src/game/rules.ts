@@ -121,10 +121,11 @@ export function getTrickTargets(
   }
 }
 
-/** Hand limit = current HP (+2 for 周瑜 英姿) */
+/** Hand limit = current HP (+2 for 周瑜 英姿 / 袁紹 雄才) */
 export function handLimit(player: Player): number {
   const base = Math.max(player.hp, 1);
   if (player.character.id === 'zhouyu') return base + 2;
+  if (player.character.id === 'yuanshao') return base + 2;
   return base;
 }
 

@@ -119,6 +119,28 @@ export function createDeck(): Card[] {
   return shuffle(cards);
 }
 
+export const CARD_DESCRIPTIONS: Record<string, string> = {
+  sha:          '對攻擊範圍內的目標造成1點傷害',
+  sha_fire:     '火焰傷害，目標需出【閃】，仁王盾無效',
+  shan:         '用於回應【殺】，閃避攻擊傷害',
+  tao:          '回復1點血量',
+  wanjian:      '對所有其他角色生效，各需出【閃】否則受1傷',
+  nanman:       '對所有其他角色生效，各需出【殺】否則受1傷',
+  wuzhong:      '立即摸2張牌',
+  guohe:        '棄置目標角色任意1張牌（隨機）',
+  shuntian:     '獲取距離1以內目標的任意1張牌（隨機）',
+  juedou:       '與目標輪流出殺，先不出者受1傷',
+  taoyuan:      '所有角色各回復1血',
+  wugu:         '所有角色各摸1張牌',
+  zhuge_nu:     '裝備武器：每回合可無限次使用【殺】',
+  bagua_zhen:   '裝備防具：受攻擊時判定，紅色可自動閃避',
+  renwang_dun:  '裝備防具：黑色【殺】對你無效',
+  jueying:      '裝備坐騎：攻擊距離-1',
+  dilu:         '裝備坐騎：別人攻擊你的距離+1',
+  qinglong_dao: '裝備武器：攻擊距離+2',
+  zhuque_yu:    '裝備武器：你的【殺】視為【火殺】',
+};
+
 export function cardColor(card: Card): 'red' | 'black' {
   return card.suit === '♥' || card.suit === '♦' ? 'red' : 'black';
 }

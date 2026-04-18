@@ -86,23 +86,41 @@ function applyDamage(
   const players = clonePlayers(state.players);
   const target = players.find(p => p.id === targetId)!;
   const log = [...state.log];
+  let discardPile = [...state.discardPile];
 
-  target.hp = Math.max(0, target.hp - dmg);
-  log.push(`${target.name} 受到 ${dmg} 點${isFire ? '火焰' : ''}傷害 (${target.hp}/${target.maxHp})`);
-
-  if (dmg > 0) {
-    // 曹操 奸雄 / 夏侯惇 剛烈: draw 1 when damaged
-    if (target.character.id === 'caocao') {
-      log.push(`曹操 奸雄：摸1張牌`);
-      return checkDeath(drawN({ ...state, players, log }, targetId, 1), targetId, sourcePlayerId);
-    }
-    if (target.character.id === 'xiahoudun') {
-      log.push(`夏侯惇 剛烈：摸1張牌`);
-      return checkDeath(drawN({ ...state, players, log }, targetId, 1), targetId, sourcePlayerId);
+  // 小喬 天香: auto-discard a ♥ card to reduce 1 damage
+  let actualDmg = dmg;
+  if (target.character.id === 'xiaoqiao' && dmg > 0) {
+    const heartIdx = target.hand.findIndex(c => c.suit === '♥');
+    if (heartIdx !== -1) {
+      const heartCard = target.hand.splice(heartIdx, 1)[0];
+      discardPile = [...discardPile, heartCard];
+      actualDmg = Math.max(0, dmg - 1);
+      log.push(`小喬 天香：棄【${heartCard.name}】減少1點傷害`);
     }
   }
 
-  return checkDeath({ ...state, players, log }, targetId, sourcePlayerId);
+  target.hp = Math.max(0, target.hp - actualDmg);
+  log.push(`${target.name} 受到 ${actualDmg} 點${isFire ? '火焰' : ''}傷害 (${target.hp}/${target.maxHp})`);
+
+  if (actualDmg > 0) {
+    // 曹操 奸雄 / 夏侯惇 剛烈: draw 1 when damaged
+    if (target.character.id === 'caocao') {
+      log.push(`曹操 奸雄：摸1張牌`);
+      return checkDeath(drawN({ ...state, players, log, discardPile }, targetId, 1), targetId, sourcePlayerId);
+    }
+    if (target.character.id === 'xiahoudun') {
+      log.push(`夏侯惇 剛烈：摸1張牌`);
+      return checkDeath(drawN({ ...state, players, log, discardPile }, targetId, 1), targetId, sourcePlayerId);
+    }
+    // 郭嘉 遺計: draw 2 when damaged
+    if (target.character.id === 'guojia') {
+      log.push(`郭嘉 遺計：摸2張牌`);
+      return checkDeath(drawN({ ...state, players, log, discardPile }, targetId, 2), targetId, sourcePlayerId);
+    }
+  }
+
+  return checkDeath({ ...state, players, log, discardPile }, targetId, sourcePlayerId);
 }
 
 function checkDeath(state: GameState, targetId: number, killerId: number): GameState {
@@ -284,7 +302,7 @@ export function initGame(humanCharacterId: string, totalPlayers = 4, humanRole: 
 
 function startDrawPhase(state: GameState): GameState {
   const p = state.players[state.currentPlayerIndex];
-  const count = p.character.id === 'diaochan' ? 3 : 2;
+  const count = (p.character.id === 'diaochan' || p.character.id === 'zhenji') ? 3 : 2;
   const s = drawN(state, p.id, count);
   return {
     ...s,
@@ -432,6 +450,7 @@ export type GameAction =
   | { type: 'SKILL_GIVE_CARD'; targetId: number; cardIds: string[] }
   | { type: 'SKILL_ZHIHENG'; cardIds: string[] }
   | { type: 'SKILL_KULOU' }
+  | { type: 'SKILL_QIXI'; targetId: number; cardId: string }
   | { type: 'AI_ACTION' };
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -516,6 +535,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const player = state.players[state.currentPlayerIndex];
       if (!player.isHuman || player.character.id !== 'huanggai' || player.skillUsed) return state;
       return skillKulou(state, player.id);
+    }
+
+    case 'SKILL_QIXI': {
+      const player = state.players[state.currentPlayerIndex];
+      if (!player.isHuman || player.character.id !== 'ganning' || player.skillUsed) return state;
+      return skillQixi(state, player.id, action.targetId, action.cardId);
     }
 
     case 'AI_ACTION':
@@ -642,14 +667,18 @@ function playCardOnTarget(state: GameState, playerId: number, card: Card, target
     // 許褚 裸衣：HP ≤ 半血時殺傷害+1
     const isXuchu = player.character.id === 'xuchu';
     if (isXuchu && player.hp <= Math.floor(player.maxHp / 2)) dmg += 1;
+    // 黃忠 烈弓：目標血量 ≤ 上限一半時殺傷害+1
+    const isHuangzhong = player.character.id === 'huangzhong';
+    if (isHuangzhong && target.hp <= Math.floor(target.maxHp / 2)) dmg += 1;
     // 呂布 無雙：目標需出2張閃
     const isLubu = player.character.id === 'lubu';
 
+    const extraNote = (isXuchu && dmg > 1 ? '（裸衣+1）' : '') + (isHuangzhong && target.hp <= Math.floor(target.maxHp / 2) ? '（烈弓+1）' : '');
     let result: GameState = {
       ...s,
       players,
       discardPile: [...s.discardPile, c],
-      log: [...s.log, `${player.name} 對 ${target.name} 使用【${c.name}】${isXuchu && dmg > 1 ? '（裸衣+1）' : ''}`],
+      log: [...s.log, `${player.name} 對 ${target.name} 使用【${c.name}】${extraNote}`],
       pendingAction: {
         type: 'respond_sha',
         actorId: targetId,
@@ -848,6 +877,12 @@ function skipResponse(state: GameState): GameState {
         s2 = { ...s2, log: [...s2.log, `馬超 鐵騎：${target.name} 棄置【${toDiscard.name}】`] };
       }
     }
+    // 魏延 狂骨：殺命中後摸1張牌
+    const attackerNow = s2.players.find(p => p.id === pa.sourcePlayerId);
+    if (attackerNow?.isAlive && attackerNow.character.id === 'weiyan') {
+      s2 = drawN(s2, pa.sourcePlayerId, 1);
+      s2 = { ...s2, log: [...s2.log, `魏延 狂骨：摸1張牌`] };
+    }
     return s2;
   }
 
@@ -961,6 +996,29 @@ function skillKulou(state: GameState, playerId: number): GameState {
   const players = clonePlayers(s.players);
   players.find(p => p.id === playerId)!.skillUsed = true;
   return { ...s, players, log: [...s.log, `黃蓋 苦肉：失去1血，摸3張牌`] };
+}
+
+function skillQixi(state: GameState, playerId: number, targetId: number, discardCardId: string): GameState {
+  const players = clonePlayers(state.players);
+  const giver = players.find(p => p.id === playerId)!;
+  const target = players.find(p => p.id === targetId);
+  if (!target?.isAlive || target.hand.length === 0) return state;
+
+  const [newHand, discarded] = removeFromHand(giver.hand, discardCardId);
+  if (!discarded) return state;
+  giver.hand = newHand;
+
+  const idx = Math.floor(Math.random() * target.hand.length);
+  const stolen = target.hand.splice(idx, 1)[0];
+  giver.hand.push(stolen);
+  giver.skillUsed = true;
+
+  return {
+    ...state,
+    players,
+    discardPile: [...state.discardPile, discarded],
+    log: [...state.log, `甘寧 奇襲：棄【${discarded.name}】，從 ${target.name} 手中奪取【${stolen.name}】`],
+  };
 }
 
 // ─── AI ───────────────────────────────────────────────────────────────────────
@@ -1122,6 +1180,20 @@ function aiPlayTurn(state: GameState, player: Player): GameState {
     const ally = s.players.find(p => p.isAlive && p.id !== curP2b.id);
     if (badCards.length >= 2 && ally) {
       s = skillGiveCard(s, curP2b.id, ally.id, badCards.map(c => c.id), 'liubei');
+    }
+  }
+
+  // 甘寧 奇襲
+  const curPGn = s.players.find(p => p.id === player.id)!;
+  if (curPGn.character.id === 'ganning' && !curPGn.skillUsed && curPGn.hand.length >= 1) {
+    const enemies = getEnemies(curPGn, s.players).filter(e => e.hand.length > 0);
+    if (enemies.length > 0) {
+      const badCards = curPGn.hand.filter(c =>
+        c.type !== 'sha' && c.type !== 'sha_fire' && c.type !== 'tao' &&
+        !['weapon', 'armor', 'horse_minus', 'horse_plus'].includes(c.category)
+      );
+      const toDiscard = badCards[0] ?? curPGn.hand[curPGn.hand.length - 1];
+      s = skillQixi(s, curPGn.id, enemies[0].id, toDiscard.id);
     }
   }
 
