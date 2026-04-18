@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ALL_CHARACTERS } from '../data/characters';
 import { ROLE_DIST_LABEL, getRolesForCount } from '../data/roles';
 import type { Character, Role } from '../types/game';
+import CharacterListOverlay from './CharacterListOverlay';
 
 interface Props {
   onStart: (characterId: string, playerCount: number, role: Role) => void;
@@ -51,6 +52,7 @@ export default function GameSetup({ onStart, onBack }: Props) {
   const [choices, setChoices] = useState<Character[]>([]);
   const [selected, setSelected] = useState<Character | null>(null);
   const [animOut, setAnimOut] = useState(false);
+  const [showCharList, setShowCharList] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Kick off the reveal when phase changes to 'revealing'
@@ -83,9 +85,16 @@ export default function GameSetup({ onStart, onBack }: Props) {
   if (phase === 'setup') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-stone-950 via-amber-950/10 to-stone-950 flex flex-col items-center justify-center p-6 gap-6 overflow-auto">
+        {showCharList && <CharacterListOverlay onClose={() => setShowCharList(false)} />}
         {onBack && (
           <button onClick={onBack} className="absolute top-4 left-4 text-gray-500 hover:text-gray-300 text-sm">← 返回</button>
         )}
+        <button
+          onClick={() => setShowCharList(true)}
+          className="absolute top-4 right-4 text-amber-500 border border-amber-800 rounded-lg px-3 py-1.5 text-sm hover:bg-amber-900/30"
+        >
+          武將一覽
+        </button>
 
         <div className="text-center mb-2">
           <h1 className="text-5xl font-bold text-amber-400 tracking-wider mb-2" style={{ fontFamily: 'serif' }}>

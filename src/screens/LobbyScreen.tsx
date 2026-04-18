@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getSocket } from '../socket/client';
 import type { RoomState } from '../types/room';
 import { ROLE_DIST_LABEL } from '../data/roles';
+import CharacterListOverlay from '../components/CharacterListOverlay';
 
 interface Props {
   onJoined: (roomState: RoomState) => void;
@@ -14,6 +15,7 @@ export default function LobbyScreen({ onJoined, onBack }: Props) {
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showCharList, setShowCharList] = useState(false);
 
   const handleCreate = () => {
     if (!playerName.trim()) { setError('請輸入名稱'); return; }
@@ -42,8 +44,15 @@ export default function LobbyScreen({ onJoined, onBack }: Props) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-950 via-amber-950/10 to-stone-950 flex flex-col items-center justify-center p-6 gap-6">
+      {showCharList && <CharacterListOverlay onClose={() => setShowCharList(false)} />}
       <button onClick={onBack} className="absolute top-4 left-4 text-gray-500 hover:text-gray-300 text-sm">
         ← 返回
+      </button>
+      <button
+        onClick={() => setShowCharList(true)}
+        className="absolute top-4 right-4 text-amber-500 border border-amber-800 rounded-lg px-3 py-1.5 text-sm hover:bg-amber-900/30"
+      >
+        武將一覽
       </button>
 
       <h2 className="text-3xl font-bold text-amber-400">線上多人</h2>
