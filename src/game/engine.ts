@@ -88,14 +88,20 @@ function applyDamage(
   const log = [...state.log];
   let discardPile = [...state.discardPile];
 
-  // 小喬 天香: auto-discard a ♥ card to reduce 1 damage
+  // 典韋 重鎧: damage capped at 1
   let actualDmg = dmg;
-  if (target.character.id === 'xiaoqiao' && dmg > 0) {
+  if (target.character.id === 'dianwei' && dmg > 1) {
+    log.push(`典韋 重鎧：傷害上限為1點`);
+    actualDmg = 1;
+  }
+
+  // 小喬 天香: auto-discard a ♥ card to reduce 1 damage
+  if (target.character.id === 'xiaoqiao' && actualDmg > 0) {
     const heartIdx = target.hand.findIndex(c => c.suit === '♥');
     if (heartIdx !== -1) {
       const heartCard = target.hand.splice(heartIdx, 1)[0];
       discardPile = [...discardPile, heartCard];
-      actualDmg = Math.max(0, dmg - 1);
+      actualDmg = Math.max(0, actualDmg - 1);
       log.push(`小喬 天香：棄【${heartCard.name}】減少1點傷害`);
     }
   }
@@ -134,9 +140,18 @@ function checkDeath(state: GameState, targetId: number, killerId: number): GameS
   const taoIdx = target.hand.findIndex(c => c.type === 'tao');
   if (taoIdx !== -1) {
     target.hand.splice(taoIdx, 1);
-    target.hp = Math.min(1, target.maxHp);
+    const taoHeal = target.character.id === 'xunyu' ? 2 : 1; // 荀彧 節命
+    target.hp = Math.min(taoHeal, target.maxHp);
     log.push(`${target.name} 使用【桃】脫險，回復至 ${target.hp} 血`);
     if (target.hp > 0) return { ...state, players, log };
+  }
+
+  // 周泰 不屈: discard 1 card to survive at 1 HP
+  if (target.character.id === 'zhoutai' && target.hand.length > 0) {
+    const saveCard = target.hand.splice(0, 1)[0];
+    target.hp = 1;
+    log.push(`周泰 不屈：棄【${saveCard.name}】以1血存活`);
+    return { ...state, players, log, discardPile: [...state.discardPile, saveCard] };
   }
 
   // Dead
@@ -302,7 +317,9 @@ export function initGame(humanCharacterId: string, totalPlayers = 4, humanRole: 
 
 function startDrawPhase(state: GameState): GameState {
   const p = state.players[state.currentPlayerIndex];
-  const count = (p.character.id === 'diaochan' || p.character.id === 'zhenji') ? 3 : 2;
+  const count = (p.character.id === 'diaochan' || p.character.id === 'zhenji') ? 3
+              : p.character.id === 'dongzhuo' ? 1
+              : 2;
   const s = drawN(state, p.id, count);
   return {
     ...s,
@@ -451,6 +468,8 @@ export type GameAction =
   | { type: 'SKILL_ZHIHENG'; cardIds: string[] }
   | { type: 'SKILL_KULOU' }
   | { type: 'SKILL_QIXI'; targetId: number; cardId: string }
+  | { type: 'SKILL_LUOFENG'; cardIds: string[] }
+  | { type: 'SKILL_HAOSHI'; targetId: number; cardId: string }
   | { type: 'AI_ACTION' };
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -497,7 +516,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase !== 'discard') return state;
       const player = state.players[state.currentPlayerIndex];
       if (!player.isHuman) return state;
-      const s = discardCardFromHand(state, player.id, action.cardId);
+      let s = discardCardFromHand(state, player.id, action.cardId);
+      // 姜維 志繼: draw 1 for each card discarded in discard phase
+      if (player.character.id === 'jiangwei') {
+        s = drawN(s, player.id, 1);
+        s = { ...s, log: [...s.log, `姜維 志繼：摸1張牌`] };
+      }
       const remaining = s.discardCount - 1;
       if (remaining <= 0) return advanceToNextTurn({ ...s, discardCount: 0 });
       return { ...s, discardCount: remaining };
@@ -543,6 +567,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return skillQixi(state, player.id, action.targetId, action.cardId);
     }
 
+    case 'SKILL_LUOFENG': {
+      const player = state.players[state.currentPlayerIndex];
+      if (!player.isHuman || player.character.id !== 'pangtong' || player.skillUsed) return state;
+      return skillLuofeng(state, player.id, action.cardIds);
+    }
+
+    case 'SKILL_HAOSHI': {
+      const player = state.players[state.currentPlayerIndex];
+      if (!player.isHuman || player.character.id !== 'lusu' || player.skillUsed) return state;
+      return skillHaoshi(state, player.id, action.targetId, action.cardId);
+    }
+
     case 'AI_ACTION':
       return handleAIAction(state);
 
@@ -566,7 +602,8 @@ function playCardNoTarget(state: GameState, playerId: number, card: Card): GameS
     if (!c) return state;
     const players = clonePlayers(s.players);
     const p = players.find(pp => pp.id === playerId)!;
-    p.hp = Math.min(p.hp + 1, p.maxHp);
+    const taoHeal = p.character.id === 'xunyu' ? 2 : 1; // 荀彧 節命
+    p.hp = Math.min(p.hp + taoHeal, p.maxHp);
     return {
       ...s,
       players,
@@ -670,10 +707,17 @@ function playCardOnTarget(state: GameState, playerId: number, card: Card, target
     // 黃忠 烈弓：目標血量 ≤ 上限一半時殺傷害+1
     const isHuangzhong = player.character.id === 'huangzhong';
     if (isHuangzhong && target.hp <= Math.floor(target.maxHp / 2)) dmg += 1;
+    // 張角 雷擊：黑色殺傷害+1
+    const isZhangjue = player.character.id === 'zhangjue';
+    if (isZhangjue && (c.suit === '♠' || c.suit === '♣')) dmg += 1;
     // 呂布 無雙：目標需出2張閃
     const isLubu = player.character.id === 'lubu';
 
-    const extraNote = (isXuchu && dmg > 1 ? '（裸衣+1）' : '') + (isHuangzhong && target.hp <= Math.floor(target.maxHp / 2) ? '（烈弓+1）' : '');
+    const extraNote = [
+      isXuchu && player.hp <= Math.floor(player.maxHp / 2) ? '裸衣+1' : '',
+      isHuangzhong && target.hp <= Math.floor(target.maxHp / 2) ? '烈弓+1' : '',
+      isZhangjue && (c.suit === '♠' || c.suit === '♣') ? '雷擊+1' : '',
+    ].filter(Boolean).map(s => `（${s}）`).join('');
     let result: GameState = {
       ...s,
       players,
@@ -795,7 +839,9 @@ function respondWithCard(state: GameState, actorId: number, cardId: string): Gam
 
   if (pa.type === 'respond_sha' || pa.type === 'respond_wanjian') {
     const card = actor.hand.find(c => c.id === cardId);
-    if (!card || !cardCanBeShan(card, actor)) return state;
+    // 大喬 流離: any card can dodge SHA
+    const canDodge = card && (cardCanBeShan(card, actor) || actor.character.id === 'daqiao');
+    if (!canDodge) return state;
     const [s, used] = playFromHand(state, actorId, cardId);
     if (!used) return state;
     const s2 = { ...s, discardPile: [...s.discardPile, used] };
@@ -1021,6 +1067,35 @@ function skillQixi(state: GameState, playerId: number, targetId: number, discard
   };
 }
 
+function skillLuofeng(state: GameState, playerId: number, cardIds: string[]): GameState {
+  if (cardIds.length < 3) return state;
+  let s = state;
+  for (const cid of cardIds.slice(0, 3)) {
+    s = discardCardFromHand(s, playerId, cid);
+  }
+  s = drawN(s, playerId, 4);
+  const players = clonePlayers(s.players);
+  players.find(p => p.id === playerId)!.skillUsed = true;
+  return { ...s, players, log: [...s.log, `龐統 落鳳：棄3張牌，摸4張牌`] };
+}
+
+function skillHaoshi(state: GameState, playerId: number, targetId: number, cardId: string): GameState {
+  const players = clonePlayers(state.players);
+  const giver = players.find(p => p.id === playerId)!;
+  const target = players.find(p => p.id === targetId);
+  if (!target?.isAlive) return state;
+
+  const [newHand, card] = removeFromHand(giver.hand, cardId);
+  if (!card) return state;
+  giver.hand = newHand;
+  target.hand.push(card);
+  giver.skillUsed = true;
+
+  let s = { ...state, players, log: [...state.log, `魯肅 好施：給予 ${target.name}【${card.name}】`] };
+  s = drawN(s, playerId, 1);
+  return s;
+}
+
 // ─── AI ───────────────────────────────────────────────────────────────────────
 
 function aiDiscard(state: GameState, player: Player): GameState {
@@ -1047,7 +1122,15 @@ function aiDiscard(state: GameState, player: Player): GameState {
     const toDiscard = sorted.find(c => curHand.some(h => h.id === c.id));
     if (!toDiscard) break;
     s = discardCardFromHand(s, player.id, toDiscard.id);
+    // 姜維 志繼: draw 1 for each discarded card
+    if (player.character.id === 'jiangwei') {
+      s = drawN(s, player.id, 1);
+    }
     sorted.splice(sorted.findIndex(c => c.id === toDiscard.id), 1);
+  }
+  if (player.character.id === 'jiangwei') {
+    const discardCount = player.hand.length - limit;
+    if (discardCount > 0) s = { ...s, log: [...s.log, `姜維 志繼：摸${discardCount}張牌`] };
   }
 
   return advanceToNextTurn({ ...s, discardCount: 0 });
@@ -1079,6 +1162,20 @@ function aiRespond(state: GameState, actor: Player): GameState {
     // Try 閃
     const shan = actor.hand.find(c => cardCanBeShan(c, actor));
     if (shan) return respondWithCard(state, actor.id, shan.id);
+
+    // 大喬 流離: use worst card to dodge
+    if (actor.character.id === 'daqiao' && actor.hand.length > 0) {
+      const cardScore = (c: Card) => {
+        if (c.type === 'tao') return 10;
+        if (c.type === 'sha' || c.type === 'sha_fire') return 8;
+        if (['weapon', 'armor', 'horse_minus', 'horse_plus'].includes(c.category)) return 6;
+        if (c.type === 'wuzhong' || c.type === 'nanman' || c.type === 'wanjian') return 5;
+        if (c.type === 'shan') return 2;
+        return 3;
+      };
+      const worst = [...actor.hand].sort((a, b) => cardScore(a) - cardScore(b))[0];
+      return respondWithCard(state, actor.id, worst.id);
+    }
 
     // Try 八卦陣
     if (actor.equipment.armor?.type === 'bagua_zhen') {
@@ -1180,6 +1277,31 @@ function aiPlayTurn(state: GameState, player: Player): GameState {
     const ally = s.players.find(p => p.isAlive && p.id !== curP2b.id);
     if (badCards.length >= 2 && ally) {
       s = skillGiveCard(s, curP2b.id, ally.id, badCards.map(c => c.id), 'liubei');
+    }
+  }
+
+  // 龐統 落鳳: discard 3 bad cards, draw 4
+  const curPPt = s.players.find(p => p.id === player.id)!;
+  if (curPPt.character.id === 'pangtong' && !curPPt.skillUsed && curPPt.hand.length >= 3) {
+    const badCards = curPPt.hand.filter(c =>
+      c.type !== 'sha' && c.type !== 'sha_fire' && c.type !== 'tao' &&
+      !['weapon', 'armor', 'horse_minus', 'horse_plus'].includes(c.category)
+    ).slice(0, 3);
+    if (badCards.length >= 3) {
+      s = skillLuofeng(s, curPPt.id, badCards.map(c => c.id));
+    }
+  }
+
+  // 魯肅 好施: give worst card to any ally, draw 1
+  const curPLs = s.players.find(p => p.id === player.id)!;
+  if (curPLs.character.id === 'lusu' && !curPLs.skillUsed && curPLs.hand.length >= 1) {
+    const badCards = curPLs.hand.filter(c =>
+      c.type !== 'sha' && c.type !== 'sha_fire' && c.type !== 'tao' &&
+      !['weapon', 'armor', 'horse_minus', 'horse_plus'].includes(c.category)
+    );
+    if (badCards.length > 0) {
+      const ally = s.players.find(p => p.isAlive && p.id !== curPLs.id);
+      if (ally) s = skillHaoshi(s, curPLs.id, ally.id, badCards[0].id);
     }
   }
 

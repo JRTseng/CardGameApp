@@ -29,6 +29,7 @@ export function canUseSha(player: Player): boolean {
   if (player.character.id === 'zhangfei') return true;
   if (player.equipment.weapon?.type === 'zhuge_nu') return true;
   if (player.character.id === 'zhangliao') return player.shaCount < 2; // 突擊
+  if (player.character.id === 'dongzhuo') return player.shaCount < 2;  // 暴政
   return player.shaCount === 0;
 }
 
@@ -121,11 +122,12 @@ export function getTrickTargets(
   }
 }
 
-/** Hand limit = current HP (+2 for 周瑜 英姿 / 袁紹 雄才) */
+/** Hand limit = current HP (+2 for 周瑜 英姿 / 袁紹 雄才; fixed at maxHp for 呂蒙 克己) */
 export function handLimit(player: Player): number {
   const base = Math.max(player.hp, 1);
   if (player.character.id === 'zhouyu') return base + 2;
   if (player.character.id === 'yuanshao') return base + 2;
+  if (player.character.id === 'lvmeng') return Math.max(player.maxHp, 1); // 克己: fixed at maxHp
   return base;
 }
 

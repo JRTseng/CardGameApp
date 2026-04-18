@@ -22,7 +22,8 @@ export default function ActionPanel({ state, dispatch }: Props) {
     let responseCards: Card[] = [];
 
     if (pa.type === 'respond_sha' || pa.type === 'respond_wanjian') {
-      responseCards = human.hand.filter(c => cardCanBeShan(c, human));
+      // 大喬 流離: any card can dodge
+      responseCards = human.character.id === 'daqiao' ? human.hand : human.hand.filter(c => cardCanBeShan(c, human));
     } else if (pa.type === 'respond_nanman' || pa.type === 'respond_juedou') {
       responseCards = human.hand.filter(c => cardCanBeSha(c, human));
     }
@@ -182,6 +183,20 @@ export default function ActionPanel({ state, dispatch }: Props) {
           />
         )}
 
+        {/* 龐統 落鳳 */}
+        {char.id === 'pangtong' && !currentPlayer.skillUsed && currentPlayer.hand.length >= 3 && (
+          <LuofengPanel player={currentPlayer} onConfirm={ids => dispatch({ type: 'SKILL_LUOFENG', cardIds: ids })} />
+        )}
+
+        {/* 魯肅 好施 */}
+        {char.id === 'lusu' && !currentPlayer.skillUsed && currentPlayer.hand.length >= 1 && (
+          <HaoshiPanel
+            player={currentPlayer}
+            state={state}
+            onConfirm={(tid, cid) => dispatch({ type: 'SKILL_HAOSHI', targetId: tid, cardId: cid })}
+          />
+        )}
+
         <button
           onClick={() => dispatch({ type: 'END_PLAY_PHASE' })}
           className="w-full py-2 bg-amber-800 hover:bg-amber-700 text-white rounded-lg font-bold transition-colors border border-amber-600"
@@ -273,6 +288,70 @@ function QixiPanel({ player, state, onConfirm }: {
         className="w-full py-1 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 text-white rounded text-xs font-bold"
       >
         奇襲（棄1牌）
+      </button>
+    </div>
+  );
+}
+
+function LuofengPanel({ player, onConfirm }: { player: Player; onConfirm: (ids: string[]) => void }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggle = (id: string) =>
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  return (
+    <div className="w-full border border-orange-600 rounded-lg p-2 bg-orange-950/50">
+      <div className="text-orange-300 text-xs font-bold mb-1">龐統 落鳳 — 棄3牌摸4牌</div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {player.hand.map(c => (
+          <CardView key={c.id} card={c} small selected={selected.includes(c.id)} onClick={() => toggle(c.id)} />
+        ))}
+      </div>
+      <button
+        disabled={selected.length < 3}
+        onClick={() => { onConfirm(selected.slice(0, 3)); setSelected([]); }}
+        className="w-full py-1 bg-orange-700 hover:bg-orange-600 disabled:opacity-40 text-white rounded text-xs font-bold"
+      >
+        落鳳（選3張棄置）
+      </button>
+    </div>
+  );
+}
+
+function HaoshiPanel({ player, state, onConfirm }: {
+  player: Player;
+  state: GameState;
+  onConfirm: (targetId: number, cardId: string) => void;
+}) {
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<number | null>(null);
+  const targets = state.players.filter(p => p.isAlive && p.id !== player.id);
+  if (targets.length === 0) return null;
+
+  return (
+    <div className="w-full border border-emerald-600 rounded-lg p-2 bg-emerald-950/50">
+      <div className="text-emerald-300 text-xs font-bold mb-1">魯肅 好施 — 給1牌並摸1牌</div>
+      <div className="flex gap-1 mb-1 flex-wrap">
+        {targets.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTargetId(t.id)}
+            className={`text-xs px-2 py-1 rounded border ${targetId === t.id ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-emerald-900 border-emerald-700 text-emerald-300'}`}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {player.hand.map(c => (
+          <CardView key={c.id} card={c} small selected={selectedCard === c.id} onClick={() => setSelectedCard(c.id)} />
+        ))}
+      </div>
+      <button
+        disabled={!selectedCard || targetId === null}
+        onClick={() => { if (selectedCard && targetId !== null) { onConfirm(targetId, selectedCard); setSelectedCard(null); setTargetId(null); } }}
+        className="w-full py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded text-xs font-bold"
+      >
+        好施（給1張牌）
       </button>
     </div>
   );
