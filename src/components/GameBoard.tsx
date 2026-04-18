@@ -134,23 +134,8 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
         <span className="text-gray-600">棄牌:{state.discardPile.length}</span>
       </div>
 
-      {/* ── INLINE GAME LOG ── */}
-      <div className="mx-2 my-1 bg-black/40 rounded-lg border border-amber-900/20 text-xs">
-        <div className="px-2 pt-1.5 pb-0.5">
-          <span className="text-amber-700 font-semibold">出牌紀錄</span>
-        </div>
-        <div className="overflow-y-auto px-2 pb-1.5 max-h-28">
-          {state.log.slice(-20).map((entry, i) => (
-            <div key={i} className="text-gray-400 leading-snug py-0.5 border-b border-white/5 last:border-0">
-              {entry}
-            </div>
-          ))}
-          <div ref={logEndRef} />
-        </div>
-      </div>
-
       {/* ── HUMAN + ACTION PANEL ── */}
-      <div className="flex flex-col sm:flex-row gap-2 px-2 pb-4">
+      <div className="flex flex-col sm:flex-row gap-2 px-2 pt-1">
 
         {/* Human player board */}
         <div className="flex-shrink-0 self-start">
@@ -163,9 +148,24 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
           />
         </div>
 
-        {/* Action panel — grows to fit content, no overflow clipping */}
+        {/* Action panel */}
         <div className="flex-1 bg-black/30 rounded-xl border border-amber-900/30 p-2">
           <ActionPanel state={state} dispatch={dispatch} />
+        </div>
+      </div>
+
+      {/* ── GAME LOG (bottom, fills remaining space) ── */}
+      <div className="flex-1 mx-2 mt-2 mb-3 flex flex-col min-h-32 bg-black/40 rounded-xl border border-amber-900/25">
+        <div className="px-3 py-1.5 border-b border-amber-900/20">
+          <span className="text-amber-600 font-semibold text-xs tracking-wide">出牌紀錄</span>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-2 text-xs">
+          {state.log.map((entry, i) => (
+            <div key={i} className="text-gray-400 leading-relaxed py-0.5 border-b border-white/5 last:border-0">
+              {entry}
+            </div>
+          ))}
+          <div ref={logEndRef} />
         </div>
       </div>
     </div>
