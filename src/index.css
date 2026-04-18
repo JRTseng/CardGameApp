@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #0c0a09;
+  color: #fff;
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 0;
+  text-align: left;
+  border: none;
+  min-height: unset;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(180, 120, 30, 0.5);
+  border-radius: 3px;
+}
+
+@keyframes damage-flash {
+  0%   { background-color: transparent; box-shadow: none; }
+  25%  { background-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); }
+  75%  { background-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+  100% { background-color: transparent; box-shadow: none; }
+}
+
+@keyframes heal-flash {
+  0%   { background-color: transparent; box-shadow: none; }
+  25%  { background-color: rgba(34, 197, 94, 0.4); box-shadow: 0 0 20px rgba(34, 197, 94, 0.7); }
+  75%  { background-color: rgba(34, 197, 94, 0.2); box-shadow: 0 0 10px rgba(34, 197, 94, 0.4); }
+  100% { background-color: transparent; box-shadow: none; }
+}
+
+@keyframes card-play {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  50%  { transform: translateY(-20px) scale(1.15); opacity: 0.8; }
+  100% { transform: translateY(-40px) scale(0.8); opacity: 0; }
+}
+
+@keyframes turn-notify {
+  0%   { transform: translateX(-50%) translateY(-10px); opacity: 0; }
+  20%  { transform: translateX(-50%) translateY(0); opacity: 1; }
+  80%  { transform: translateX(-50%) translateY(0); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-10px); opacity: 0; }
+}
+
+.animate-damage { animation: damage-flash 0.65s ease-out; }
+.animate-heal   { animation: heal-flash 0.65s ease-out; }
+.animate-card-play { animation: card-play 0.4s ease-out forwards; }
+.animate-turn-notify { animation: turn-notify 1.8s ease-in-out forwards; }

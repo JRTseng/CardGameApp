@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm --version)",
+      "Read(//usr/bin/**)",
+      "Bash(/bin/sh -c \"node --version\")",
+      "Bash(/bin/sh:*)",
+      "Bash(/snap/bin/npm --version)",
+      "Bash(/snap/bin/npx --version)",
+      "Bash(/snap/bin/npm create:*)",
+      "Bash(cp:*)",
+      "Bash(/snap/bin/npm install:*)",
+      "Bash(/snap/bin/npm run:*)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -f \"tsx server\")",
+      "Bash(echo \"Server PID: $!\")",
+      "Bash(echo \"Vite PID: $!\")",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s http://localhost:3001)",
+      "Bash(npx tsc *)",
+      "Bash(bash *)",
+      "Bash(export SHELL=/bin/bash)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/vite build *)"
+    ]
+  }
+}
