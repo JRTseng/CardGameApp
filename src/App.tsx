@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useState, useCallback } from 'react';
-import type { GameState } from './types/game';
+import type { GameState, Role } from './types/game';
 import type { RoomState } from './types/room';
 import { gameReducer, initGame, type GameAction } from './game/engine';
 import { getSocket, disconnectSocket } from './socket/client';
@@ -16,13 +16,15 @@ export default function App() {
   const [gameKey, setGameKey] = useState(0);
   const [soloCharId, setSoloCharId] = useState<string | null>(null);
   const [soloPlayerCount, setSoloPlayerCount] = useState(4);
+  const [soloRole, setSoloRole] = useState<Role>('lord');
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [onlineGameState, setOnlineGameState] = useState<GameState | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
 
-  const handleSoloStart = (charId: string, playerCount: number) => {
+  const handleSoloStart = (charId: string, playerCount: number, role: Role) => {
     setSoloCharId(charId);
     setSoloPlayerCount(playerCount);
+    setSoloRole(role);
     setGameKey(k => k + 1);
     setScreen('game_solo');
   };
@@ -68,7 +70,7 @@ export default function App() {
 
     case 'game_solo':
       return soloCharId ? (
-        <SoloGameInstance key={gameKey} characterId={soloCharId} playerCount={soloPlayerCount} onRestart={handleRestart} />
+        <SoloGameInstance key={gameKey} characterId={soloCharId} playerCount={soloPlayerCount} role={soloRole} onRestart={handleRestart} />
       ) : null;
 
     case 'game_online':
@@ -89,8 +91,8 @@ export default function App() {
 
 // ─── Solo Game ─────────────────────────────────────────────────────────────────
 
-function SoloGameInstance({ characterId, playerCount, onRestart }: { characterId: string; playerCount: number; onRestart: () => void }) {
-  const [state, dispatch] = useReducer(gameReducer, undefined, () => initGame(characterId, playerCount));
+function SoloGameInstance({ characterId, playerCount, role, onRestart }: { characterId: string; playerCount: number; role: Role; onRestart: () => void }) {
+  const [state, dispatch] = useReducer(gameReducer, undefined, () => initGame(characterId, playerCount, role));
 
   useEffect(() => {
     if (state.gameOver) return;

@@ -212,10 +212,13 @@ function equipCard(state: GameState, playerId: number, card: Card): GameState {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
-export function initGame(humanCharacterId: string, totalPlayers = 4): GameState {
+export function initGame(humanCharacterId: string, totalPlayers = 4, humanRole: Role = 'lord'): GameState {
   const allRoles = getRolesForCount(totalPlayers);
-  const otherRoles = shuffle(allRoles.filter(r => r !== 'lord'));
-  const roles: Role[] = ['lord', ...otherRoles];
+  // Remove one instance of humanRole from pool, shuffle the rest for AI
+  const pool = [...allRoles];
+  const hi = pool.findIndex(r => r === humanRole);
+  if (hi !== -1) pool.splice(hi, 1);
+  const roles: Role[] = [humanRole, ...shuffle(pool)];
 
   const otherIds = shuffle(
     ALL_CHARACTERS.map(c => c.id).filter(id => id !== humanCharacterId)
@@ -249,14 +252,17 @@ export function initGame(humanCharacterId: string, totalPlayers = 4): GameState 
   let deck = createDeck();
   if (totalPlayers > 8) deck = shuffle([...deck, ...createDeck()]);
 
+  const lordIdx = players.findIndex(p => p.role === 'lord');
+  const startIdx = lordIdx >= 0 ? lordIdx : 0;
+
   let state: GameState = {
     phase: 'draw',
     players,
     deck,
     discardPile: [],
-    currentPlayerIndex: 0,
+    currentPlayerIndex: startIdx,
     round: 1,
-    log: ['遊戲開始！主公先行。'],
+    log: [`遊戲開始！${players[startIdx].name}（主公）先行。`],
     gameOver: false,
     winnerRole: null,
     winnerPlayerIds: [],
@@ -270,7 +276,7 @@ export function initGame(humanCharacterId: string, totalPlayers = 4): GameState 
     state = drawN(state, p.id, 4);
   }
 
-  state.log.push(`輪到 ${players[0].name} 的回合`);
+  state.log.push(`輪到 ${players[startIdx].name} 的回合`);
   return startDrawPhase(state);
 }
 
