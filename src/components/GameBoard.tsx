@@ -18,9 +18,11 @@ const ROLE_NAME: Record<string, string> = {
 
 export default function GameBoard({ state, dispatch, onRestart }: Props) {
   const human = state.players.find(p => p.isHuman)!;
+  const opponents = state.players.filter(p => !p.isHuman);
   const pa = state.pendingAction;
 
   const [showTurnAlert, setShowTurnAlert] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const wasHumanTurnRef = useRef(false);
   const isHumanTurn = !state.gameOver && !pa && state.phase === 'play'
     && state.players[state.currentPlayerIndex].id === human.id;
@@ -39,10 +41,7 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
     if (!state.selectedCardId) return new Set();
     const card = human.hand.find(c => c.id === state.selectedCardId);
     if (!card || !needsTarget(card, human)) return new Set();
-
-    if (cardCanBeSha(card, human)) {
-      return new Set(getShaTargets(human, state));
-    }
+    if (cardCanBeSha(card, human)) return new Set(getShaTargets(human, state));
     if (card.type === 'juedou' || card.type === 'guohe' || card.type === 'shuntian') {
       return new Set(getTrickTargets(human, card.type, state));
     }
@@ -51,23 +50,18 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
 
   const targetableIds = getTargetableIds();
 
-  // Layout: players[0]=human(bottom), [1]=left, [2]=top, [3]=right
-  const playerAt = (idx: number) => state.players[idx];
-
-  const renderPlayer = (idx: number) => {
-    const player = playerAt(idx);
-    const isCurrentTurn = state.players[state.currentPlayerIndex].id === player.id;
-    const isTargetable = targetableIds.has(player.id);
-    const isPending = pa?.actorId === player.id;
+  const renderOpponent = (playerId: number) => {
+    const player = state.players.find(p => p.id === playerId)!;
     return (
       <PlayerBoard
         key={player.id}
         player={player}
-        isCurrentTurn={isCurrentTurn}
-        isTargetable={isTargetable}
-        isPending={isPending}
+        compact
+        isCurrentTurn={state.players[state.currentPlayerIndex].id === player.id}
+        isTargetable={targetableIds.has(player.id)}
+        isPending={pa?.actorId === player.id}
         onTarget={() => {
-          if (isTargetable && state.selectedCardId) {
+          if (targetableIds.has(player.id) && state.selectedCardId) {
             dispatch({ type: 'PLAY_CARD_ON_TARGET', targetId: player.id });
           }
         }}
@@ -76,11 +70,11 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col bg-gradient-to-br from-stone-950 via-amber-950/20 to-stone-950 overflow-hidden p-2 gap-2">
+    <div className="w-full h-[100dvh] flex flex-col bg-gradient-to-br from-stone-950 via-amber-950/20 to-stone-950 overflow-hidden">
 
       {/* Your Turn Notification */}
       {showTurnAlert && (
-        <div className="fixed top-20 left-1/2 z-40 animate-turn-notify pointer-events-none">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 animate-turn-notify pointer-events-none">
           <div className="bg-gradient-to-r from-yellow-600 to-amber-500 text-black font-bold px-6 py-3 rounded-2xl shadow-2xl text-lg border-2 border-yellow-300">
             ⚔️ 輪到你了！
           </div>
@@ -89,14 +83,14 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
 
       {/* Game Over Overlay */}
       {state.gameOver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-amber-900 to-amber-700 border-2 border-amber-400 rounded-2xl p-8 text-center shadow-2xl max-w-md mx-4">
-            <div className="text-5xl mb-4">🏆</div>
-            <h2 className="text-2xl font-bold text-amber-100 mb-2">遊戲結束</h2>
-            <div className="text-amber-200 text-lg mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-amber-900 to-amber-700 border-2 border-amber-400 rounded-2xl p-6 text-center shadow-2xl w-full max-w-sm">
+            <div className="text-5xl mb-3">🏆</div>
+            <h2 className="text-2xl font-bold text-amber-100 mb-1">遊戲結束</h2>
+            <div className="text-amber-200 text-base mb-4">
               {state.log[state.log.length - 1]}
             </div>
-            <div className="flex flex-col gap-2 mb-6">
+            <div className="flex flex-col gap-1.5 mb-5 max-h-48 overflow-y-auto">
               {state.players.map(p => (
                 <div
                   key={p.id}
@@ -107,9 +101,9 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
                   }`}
                 >
                   <span>{state.winnerPlayerIds.includes(p.id) ? '🥇' : (p.isAlive ? '😤' : '💀')}</span>
-                  <span>{p.name}</span>
-                  <span className="text-gray-500">({p.character.name})</span>
-                  <span className="ml-auto">{ROLE_NAME[p.role]}</span>
+                  <span className="truncate">{p.name}</span>
+                  <span className="text-gray-500 shrink-0">({p.character.name})</span>
+                  <span className="ml-auto shrink-0">{ROLE_NAME[p.role]}</span>
                 </div>
               ))}
             </div>
@@ -123,43 +117,60 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
         </div>
       )}
 
-      {/* Top opponent */}
-      <div className="flex justify-center">
-        {renderPlayer(2)}
+      {/* Log overlay (mobile toggle) */}
+      {showLog && (
+        <div className="fixed inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col p-4" onClick={() => setShowLog(false)}>
+          <div className="flex-1 overflow-y-auto bg-stone-900 rounded-xl p-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-amber-400 font-bold text-sm">遊戲紀錄</span>
+              <button onClick={() => setShowLog(false)} className="text-gray-400 text-sm">✕ 關閉</button>
+            </div>
+            <GameLog
+              log={state.log}
+              deckCount={state.deck.length}
+              discardCount={state.discardPile.length}
+              round={state.round}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── OPPONENTS ROW ── */}
+      <div className="flex-shrink-0 px-2 pt-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          {opponents.map(p => renderOpponent(p.id))}
+        </div>
       </div>
 
-      {/* Middle row */}
-      <div className="flex-1 flex gap-2 items-center min-h-0">
-        {/* Left opponent */}
-        <div className="flex-shrink-0">
-          {renderPlayer(1)}
-        </div>
+      {/* ── STATUS BAR ── */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-2 py-1 text-xs">
+        <span className="text-gray-500">第{state.round}回合</span>
+        <span className="text-gray-600">牌堆:{state.deck.length}</span>
+        <span className="text-gray-600">棄牌:{state.discardPile.length}</span>
+        <button
+          onClick={() => setShowLog(true)}
+          className="ml-auto text-amber-500 border border-amber-800 rounded px-2 py-0.5 text-xs hover:bg-amber-900/30"
+        >
+          紀錄
+        </button>
+      </div>
 
-        {/* Center: log */}
-        <div className="flex-1 min-h-0">
-          <GameLog
-            log={state.log}
-            deckCount={state.deck.length}
-            discardCount={state.discardPile.length}
-            round={state.round}
+      {/* ── HUMAN + ACTION PANEL ── */}
+      <div className="flex-1 min-h-0 flex flex-col sm:flex-row gap-2 px-2 pb-2">
+
+        {/* Human player board */}
+        <div className="flex-shrink-0 self-start">
+          <PlayerBoard
+            player={human}
+            isCurrentTurn={state.players[state.currentPlayerIndex].id === human.id}
+            isTargetable={false}
+            isPending={pa?.actorId === human.id}
+            onTarget={() => {}}
           />
         </div>
 
-        {/* Right opponent */}
-        <div className="flex-shrink-0">
-          {renderPlayer(3)}
-        </div>
-      </div>
-
-      {/* Bottom row: human + action panel */}
-      <div className="flex gap-3 items-start">
-        {/* Human player board */}
-        <div className="flex-shrink-0">
-          {renderPlayer(0)}
-        </div>
-
         {/* Action panel */}
-        <div className="flex-1 bg-black/30 rounded-xl border border-amber-900/30 p-2 max-h-[200px] overflow-y-auto">
+        <div className="flex-1 min-h-0 bg-black/30 rounded-xl border border-amber-900/30 p-2 overflow-y-auto">
           <ActionPanel state={state} dispatch={dispatch} />
         </div>
       </div>

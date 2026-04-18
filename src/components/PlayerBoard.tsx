@@ -6,6 +6,7 @@ interface Props {
   isCurrentTurn: boolean;
   isTargetable: boolean;
   isPending: boolean;
+  compact?: boolean;
   onTarget: () => void;
 }
 
@@ -34,7 +35,7 @@ const KINGDOM_LABEL: Record<string, string> = {
   wei: '魏', shu: '蜀', wu: '吳', neutral: '中',
 };
 
-export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPending, onTarget }: Props) {
+export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPending, compact, onTarget }: Props) {
   const char = player.character;
   const borderColor = KINGDOM_COLORS[char.kingdom] ?? 'border-gray-500 bg-gray-950';
   const isDead = !player.isAlive;
@@ -58,10 +59,78 @@ export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPen
     prevHpRef.current = player.hp;
   }, [player.hp, player.isAlive]);
 
+  if (compact) {
+    return (
+      <div
+        className={[
+          'relative rounded-lg border-2 p-1.5 flex flex-col gap-0.5 transition-all duration-200 flex-shrink-0',
+          'w-[88px]',
+          borderColor,
+          isCurrentTurn ? 'ring-2 ring-yellow-400 shadow-md shadow-yellow-400/40' : '',
+          isTargetable ? 'ring-2 ring-red-400 cursor-pointer hover:scale-105' : '',
+          isPending ? 'ring-2 ring-orange-400 animate-pulse' : '',
+          isDead ? 'opacity-40 grayscale' : '',
+          flash === 'damage' ? 'animate-damage' : '',
+          flash === 'heal' ? 'animate-heal' : '',
+        ].join(' ')}
+        onClick={isTargetable ? onTarget : undefined}
+      >
+        {/* Kingdom badge */}
+        <div className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold bg-amber-700 text-amber-100 border border-amber-500">
+          {KINGDOM_LABEL[char.kingdom]}
+        </div>
+
+        {isCurrentTurn && (
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] bg-yellow-500 text-black px-1 rounded font-bold whitespace-nowrap">▶</div>
+        )}
+        {isTargetable && (
+          <div className="absolute -top-2 right-1 text-[9px] bg-red-500 text-white px-0.5 rounded font-bold animate-bounce">選</div>
+        )}
+        {isPending && (
+          <div className="absolute -top-2 right-1 text-[9px] bg-orange-500 text-white px-0.5 rounded font-bold">⏳</div>
+        )}
+
+        {/* Portrait + Name */}
+        <div className="flex items-center gap-1 pt-1">
+          <span className="text-lg leading-none">{char.portrait}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-white font-bold text-[11px] leading-tight truncate">{char.name}</span>
+            <span className="text-gray-400 text-[9px] leading-tight truncate">{player.name}</span>
+          </div>
+        </div>
+
+        {/* Role */}
+        {(player.roleRevealed || player.isHuman) ? (
+          <span className={`text-[9px] px-1 rounded w-fit ${ROLE_COLORS[player.role]}`}>
+            {ROLE_LABELS[player.role]}
+          </span>
+        ) : (
+          <span className="text-[9px] px-1 rounded w-fit bg-gray-700 text-gray-300">???</span>
+        )}
+
+        {/* HP dots */}
+        <div className="flex flex-wrap gap-px">
+          {Array.from({ length: player.maxHp }).map((_, i) => (
+            <span key={i} className="text-[10px] leading-none">{i < player.hp ? '❤️' : '🖤'}</span>
+          ))}
+        </div>
+
+        {/* Hand count */}
+        <div className="text-[10px] text-gray-300">🃏{player.hand.length}</div>
+
+        {isDead && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50">
+            <span className="text-2xl">💀</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={[
-        'relative rounded-xl border-2 p-2 min-w-[140px] max-w-[180px] flex flex-col gap-1 transition-all duration-200',
+        'relative rounded-xl border-2 p-2 min-w-[130px] max-w-[160px] flex flex-col gap-1 transition-all duration-200',
         borderColor,
         isCurrentTurn ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/30' : '',
         isTargetable ? 'ring-2 ring-red-400 cursor-pointer hover:shadow-lg hover:shadow-red-400/40 hover:scale-105' : '',
