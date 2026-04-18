@@ -11,7 +11,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  create_room:   (data: { playerName: string }, cb: (r: { roomId?: string; room?: RoomState; error?: string }) => void) => void;
+  create_room:   (data: { playerName: string; maxPlayers?: number }, cb: (r: { roomId?: string; room?: RoomState; error?: string }) => void) => void;
   join_room:     (data: { roomId: string; playerName: string }, cb: (r: { ok?: boolean; room?: RoomState; error?: string }) => void) => void;
   select_char:   (data: { roomId: string; characterId: string }) => void;
   start_game:    (data: { roomId: string }, cb: (r: { ok?: boolean; error?: string }) => void) => void;

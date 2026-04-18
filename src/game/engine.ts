@@ -1,6 +1,7 @@
 import type { GameState, Player, Card, Role, PendingAction, Equipment } from '../types/game';
 import { ALL_CHARACTERS } from '../data/characters';
 import { createDeck, cardColor } from '../data/cards';
+import { getRolesForCount } from '../data/roles';
 import {
   cardCanBeSha, cardCanBeShan, canUseSha,
   getShaTargets, kongchengBlocks,
@@ -149,11 +150,11 @@ function checkWin(state: GameState): GameState {
   const alivePlayers = players.filter(p => p.isAlive);
 
   if (!lord.isAlive) {
-    const spy = players.find(p => p.role === 'spy');
-    if (spy?.isAlive && alivePlayers.length === 1) {
-      return endGame(state, 'spy', [spy.id], '內奸 孤身取勝！');
+    const aliveSpies = alivePlayers.filter(p => p.role === 'spy');
+    if (aliveSpies.length > 0 && aliveSpies.length === alivePlayers.length) {
+      return endGame(state, 'spy', aliveSpies.map(p => p.id), '內奸獲勝！');
     }
-    const rebels = players.filter(p => p.role === 'rebel' && p.isAlive);
+    const rebels = alivePlayers.filter(p => p.role === 'rebel');
     return endGame(state, 'rebel', rebels.map(p => p.id), '反賊 推翻主公！');
   }
 
@@ -205,20 +206,21 @@ function equipCard(state: GameState, playerId: number, card: Card): GameState {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
-export function initGame(humanCharacterId: string): GameState {
-  const roles: Role[] = shuffle<Role>(['loyalist', 'rebel', 'spy']);
-  roles.unshift('lord');
+export function initGame(humanCharacterId: string, totalPlayers = 4): GameState {
+  const allRoles = getRolesForCount(totalPlayers);
+  const otherRoles = shuffle(allRoles.filter(r => r !== 'lord'));
+  const roles: Role[] = ['lord', ...otherRoles];
 
   const otherIds = shuffle(
     ALL_CHARACTERS.map(c => c.id).filter(id => id !== humanCharacterId)
   );
 
   const players: Player[] = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < totalPlayers; i++) {
     const role = roles[i];
     const isHuman = i === 0;
     const charId = isHuman ? humanCharacterId : otherIds[i - 1];
-    const char = ALL_CHARACTERS.find(c => c.id === charId)!;
+    const char = ALL_CHARACTERS.find(c => c.id === charId) ?? ALL_CHARACTERS[i % ALL_CHARACTERS.length];
     const baseHp = char.baseHp + (role === 'lord' ? 1 : 0);
     players.push({
       id: i,
@@ -238,10 +240,13 @@ export function initGame(humanCharacterId: string): GameState {
     });
   }
 
+  let deck = createDeck();
+  if (totalPlayers > 8) deck = shuffle([...deck, ...createDeck()]);
+
   let state: GameState = {
     phase: 'draw',
     players,
-    deck: createDeck(),
+    deck,
     discardPile: [],
     currentPlayerIndex: 0,
     round: 1,

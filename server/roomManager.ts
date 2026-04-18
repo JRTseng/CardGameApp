@@ -1,7 +1,8 @@
-import type { GameState, Player } from '../src/types/game';
-import { initGame, gameReducer, type GameAction } from '../src/game/engine';
+import type { GameState, Player, Role } from '../src/types/game';
+import { gameReducer, type GameAction } from '../src/game/engine';
 import { ALL_CHARACTERS } from '../src/data/characters';
 import { createDeck } from '../src/data/cards';
+import { getRolesForCount } from '../src/data/roles';
 
 export { type GameAction };
 
@@ -17,13 +18,14 @@ export interface RoomPublic {
   id: string;
   players: RoomPlayer[];
   status: 'waiting' | 'playing';
-  maxPlayers: 4;
+  maxPlayers: number;
 }
 
 interface Room {
   id: string;
   players: RoomPlayer[];
   status: 'waiting' | 'playing';
+  maxPlayers: number;
   gameState: GameState | null;
   socketToPlayerId: Map<string, number>;
   aiTimer: ReturnType<typeof setTimeout> | null;
@@ -37,12 +39,14 @@ export class RoomManager {
     return Math.random().toString(36).slice(2, 8).toUpperCase();
   }
 
-  createRoom(socketId: string, playerName: string): { roomId: string; room: RoomPublic } {
+  createRoom(socketId: string, playerName: string, maxPlayers = 4): { roomId: string; room: RoomPublic } {
     const id = this.genId();
+    const clamped = Math.max(2, Math.min(15, maxPlayers));
     const room: Room = {
       id,
       players: [{ socketId, name: playerName, characterId: null, isHost: true, isReady: false }],
       status: 'waiting',
+      maxPlayers: clamped,
       gameState: null,
       socketToPlayerId: new Map(),
       aiTimer: null,
@@ -56,7 +60,7 @@ export class RoomManager {
     const room = this.rooms.get(roomId);
     if (!room) return { ok: false, error: '找不到房間' };
     if (room.status === 'playing') return { ok: false, error: '遊戲已開始' };
-    if (room.players.length >= 4) return { ok: false, error: '房間已滿' };
+    if (room.players.length >= room.maxPlayers) return { ok: false, error: '房間已滿' };
     if (room.players.some(p => p.socketId === socketId)) return { ok: true, room: this.toPublic(room) };
     room.players.push({ socketId, name: playerName, characterId: null, isHost: false, isReady: false });
     this.socketToRoom.set(socketId, roomId);
@@ -93,7 +97,7 @@ export class RoomManager {
     const available = shuffle(ALL_CHARACTERS.map(c => c.id).filter(id => !usedChars.has(id)));
     room.players.forEach(p => { if (!p.characterId) { p.characterId = available.pop() ?? ALL_CHARACTERS[0].id; } });
 
-    const state = buildGameState(room.players);
+    const state = buildGameState(room.players, room.maxPlayers);
     room.socketToPlayerId = new Map(room.players.map((p, i) => [p.socketId, i]));
     room.gameState = state;
     room.status = 'playing';
@@ -174,21 +178,25 @@ export class RoomManager {
   }
 
   toPublic(room: Room): RoomPublic {
-    return { id: room.id, players: room.players, status: room.status, maxPlayers: 4 };
+    return { id: room.id, players: room.players, status: room.status, maxPlayers: room.maxPlayers };
   }
 }
 
 // ─── Build game state from room players ───────────────────────────────────────
 
-function buildGameState(humanPlayers: RoomPlayer[]): GameState {
-  const roles = shuffle<'lord' | 'loyalist' | 'rebel' | 'spy'>(['lord', 'loyalist', 'rebel', 'spy']);
+function buildGameState(humanPlayers: RoomPlayer[], maxPlayers: number): GameState {
+  const allRoles = getRolesForCount(maxPlayers);
+  const lordRole: Role = 'lord';
+  const otherRoles = shuffle(allRoles.filter(r => r !== lordRole));
+  const roles: Role[] = [lordRole, ...otherRoles];
+
   const humanCharIds = new Set(humanPlayers.map(p => p.characterId!));
   const aiChars = shuffle(ALL_CHARACTERS.filter(c => !humanCharIds.has(c.id)));
 
   const players: Player[] = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < maxPlayers; i++) {
     const isHuman = i < humanPlayers.length;
-    const charId = isHuman ? humanPlayers[i].characterId! : (aiChars.shift()?.id ?? ALL_CHARACTERS[0].id);
+    const charId = isHuman ? humanPlayers[i].characterId! : (aiChars.shift()?.id ?? ALL_CHARACTERS[i % ALL_CHARACTERS.length].id);
     const char = ALL_CHARACTERS.find(c => c.id === charId) ?? ALL_CHARACTERS[0];
     const role = roles[i];
     const baseHp = char.baseHp + (role === 'lord' ? 1 : 0);
@@ -211,6 +219,11 @@ function buildGameState(humanPlayers: RoomPlayer[]): GameState {
   }
 
   let deck = createDeck();
+  // Reshuffle deck if not enough cards (large player counts)
+  while (deck.length < players.length * 4 + 2) {
+    deck = [...deck, ...createDeck()];
+    deck = shuffle(deck);
+  }
   for (const p of players) {
     for (let i = 0; i < 4; i++) {
       if (deck.length) p.hand.push(deck.pop()!);
@@ -219,7 +232,6 @@ function buildGameState(humanPlayers: RoomPlayer[]): GameState {
 
   const lordIdx = players.findIndex(p => p.role === 'lord');
   const startIdx = lordIdx >= 0 ? lordIdx : 0;
-  // Draw 2 for first player
   for (let i = 0; i < 2; i++) {
     if (deck.length) players[startIdx].hand.push(deck.pop()!);
   }

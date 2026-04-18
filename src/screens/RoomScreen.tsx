@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSocket } from '../socket/client';
 import { ALL_CHARACTERS } from '../data/characters';
+import { ROLE_DIST_LABEL } from '../data/roles';
 import type { RoomState, RoomPlayer } from '../types/room';
 import type { GameState } from '../types/game';
 
@@ -71,16 +72,16 @@ export default function RoomScreen({ initialRoom, onGameStart, onBack }: Props) 
         <div className="text-center">
           <div className="text-amber-400 font-bold text-lg">房間號碼</div>
           <div className="text-white font-mono text-3xl font-bold tracking-widest">{room.id}</div>
-          <div className="text-gray-500 text-xs">分享給朋友</div>
+          <div className="text-gray-500 text-xs">{ROLE_DIST_LABEL[room.maxPlayers]}</div>
         </div>
-        <div className="text-gray-500 text-sm">{room.players.length}/4 人</div>
+        <div className="text-gray-500 text-sm">{room.players.length}/{room.maxPlayers} 人</div>
       </div>
 
       {/* Players in room */}
       <div className="bg-black/30 rounded-xl border border-amber-900/30 p-3">
         <h3 className="text-amber-400 font-bold mb-3 text-sm">房間成員</h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => {
+          {Array.from({ length: room.maxPlayers }).map((_, i) => {
             const p: RoomPlayer | undefined = room.players[i];
             if (!p) {
               return (
@@ -169,7 +170,7 @@ export default function RoomScreen({ initialRoom, onGameStart, onBack }: Props) 
             disabled={starting}
             className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-black font-bold rounded-xl text-lg transition-colors"
           >
-            {starting ? '開始中...' : `開始遊戲（${room.players.length}人 + ${4 - room.players.length}個AI）`}
+            {starting ? '開始中...' : `開始遊戲（${room.players.length}人 + ${room.maxPlayers - room.players.length}個AI）`}
           </button>
         ) : (
           <div className="text-center text-gray-400 py-3">
@@ -178,7 +179,7 @@ export default function RoomScreen({ initialRoom, onGameStart, onBack }: Props) 
           </div>
         )}
         <div className="text-center text-gray-600 text-xs mt-2">
-          不足4人的位置將由 AI 填補
+          不足{room.maxPlayers}人的位置將由 AI 填補
         </div>
       </div>
     </div>

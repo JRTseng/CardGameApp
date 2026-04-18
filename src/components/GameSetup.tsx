@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { ALL_CHARACTERS } from '../data/characters';
+import { ROLE_DIST_LABEL } from '../data/roles';
 import type { Character } from '../types/game';
 
 interface Props {
-  onStart: (characterId: string) => void;
+  onStart: (characterId: string, playerCount: number) => void;
   onBack?: () => void;
 }
 
@@ -29,6 +30,7 @@ const SKILL_TYPE_LABEL: Record<string, string> = {
 
 export default function GameSetup({ onStart, onBack }: Props) {
   const [selected, setSelected] = useState<Character | null>(null);
+  const [playerCount, setPlayerCount] = useState(4);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-950 via-amber-950/10 to-stone-950 flex flex-col items-center justify-center p-6 overflow-auto">
@@ -41,11 +43,28 @@ export default function GameSetup({ onStart, onBack }: Props) {
           三國決殺
         </h1>
         <p className="text-amber-600 text-lg">— 亂世英雄，沙場征戰 —</p>
-        <p className="text-gray-500 text-sm mt-2">4人遊戲 · 玩家擔任主公 + 3 AI對手</p>
       </div>
 
-      {/* Roles info */}
-      <div className="flex gap-6 mb-8 flex-wrap justify-center">
+      {/* Player count selector */}
+      <div className="w-full max-w-sm mb-6 bg-black/30 rounded-xl border border-amber-900/30 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-gray-300 font-bold">遊戲人數</span>
+          <span className="text-amber-400 font-bold text-xl">{playerCount} 人</span>
+        </div>
+        <input
+          type="range"
+          min={2}
+          max={15}
+          value={playerCount}
+          onChange={e => setPlayerCount(Number(e.target.value))}
+          className="w-full accent-amber-500 mb-2"
+        />
+        <div className="text-gray-500 text-xs text-center">{ROLE_DIST_LABEL[playerCount]}</div>
+        <div className="text-gray-600 text-xs text-center mt-1">玩家擔任主公 + {playerCount - 1} 個AI對手</div>
+      </div>
+
+      {/* Roles legend */}
+      <div className="flex gap-6 mb-6 flex-wrap justify-center">
         {[
           { role: '主公', color: 'text-yellow-400', desc: '你（+1血）' },
           { role: '忠臣', color: 'text-green-400', desc: 'AI輔助主公' },
@@ -112,7 +131,7 @@ export default function GameSetup({ onStart, onBack }: Props) {
       {/* Start button */}
       <button
         disabled={!selected}
-        onClick={() => selected && onStart(selected.id)}
+        onClick={() => selected && onStart(selected.id, playerCount)}
         className="px-12 py-4 text-xl font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black shadow-lg"
       >
         {selected ? `以【${selected.name}】出戰` : '請選擇武將'}

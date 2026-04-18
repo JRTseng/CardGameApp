@@ -12,7 +12,7 @@ export interface RoomState {
   id: string;
   players: RoomPlayer[];
   status: 'waiting' | 'playing';
-  maxPlayers: 4;
+  maxPlayers: number;
 }
 
 // GameAction is imported from engine by consumers; use unknown here to avoid circular deps

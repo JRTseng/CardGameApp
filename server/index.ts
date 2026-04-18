@@ -37,11 +37,11 @@ function onAIAction(roomId: string) {
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
-  socket.on('create_room', ({ playerName }, cb) => {
+  socket.on('create_room', ({ playerName, maxPlayers }, cb) => {
     try {
-      const { roomId, room } = rooms.createRoom(socket.id, playerName);
+      const { roomId, room } = rooms.createRoom(socket.id, playerName, maxPlayers);
       socket.join(roomId);
-      console.log(`Room ${roomId} created by ${playerName}`);
+      console.log(`Room ${roomId} created by ${playerName} (${room.maxPlayers}P)`);
       cb({ roomId, room });
     } catch (e) {
       cb({ error: String(e) });

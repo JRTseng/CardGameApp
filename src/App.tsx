@@ -15,12 +15,14 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('menu');
   const [gameKey, setGameKey] = useState(0);
   const [soloCharId, setSoloCharId] = useState<string | null>(null);
+  const [soloPlayerCount, setSoloPlayerCount] = useState(4);
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [onlineGameState, setOnlineGameState] = useState<GameState | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
 
-  const handleSoloStart = (charId: string) => {
+  const handleSoloStart = (charId: string, playerCount: number) => {
     setSoloCharId(charId);
+    setSoloPlayerCount(playerCount);
     setGameKey(k => k + 1);
     setScreen('game_solo');
   };
@@ -66,7 +68,7 @@ export default function App() {
 
     case 'game_solo':
       return soloCharId ? (
-        <SoloGameInstance key={gameKey} characterId={soloCharId} onRestart={handleRestart} />
+        <SoloGameInstance key={gameKey} characterId={soloCharId} playerCount={soloPlayerCount} onRestart={handleRestart} />
       ) : null;
 
     case 'game_online':
@@ -87,8 +89,8 @@ export default function App() {
 
 // ─── Solo Game ─────────────────────────────────────────────────────────────────
 
-function SoloGameInstance({ characterId, onRestart }: { characterId: string; onRestart: () => void }) {
-  const [state, dispatch] = useReducer(gameReducer, undefined, () => initGame(characterId));
+function SoloGameInstance({ characterId, playerCount, onRestart }: { characterId: string; playerCount: number; onRestart: () => void }) {
+  const [state, dispatch] = useReducer(gameReducer, undefined, () => initGame(characterId, playerCount));
 
   useEffect(() => {
     if (state.gameOver) return;
