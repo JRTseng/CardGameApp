@@ -70,7 +70,7 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
   };
 
   return (
-    <div className="w-full h-[100dvh] flex flex-col bg-gradient-to-br from-stone-950 via-amber-950/20 to-stone-950 overflow-hidden">
+    <div className="w-full min-h-[100dvh] flex flex-col bg-gradient-to-br from-stone-950 via-amber-950/20 to-stone-950 overflow-y-auto overflow-x-hidden">
 
       {/* Your Turn Notification */}
       {showTurnAlert && (
@@ -135,15 +135,15 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
         </div>
       )}
 
-      {/* ── OPPONENTS ROW ── */}
-      <div className="flex-shrink-0 px-2 pt-2">
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+      {/* ── OPPONENTS ROW (sticky) ── */}
+      <div className="sticky top-0 z-10 bg-stone-950/95 backdrop-blur-sm px-2 pt-2 pb-1 border-b border-amber-900/20">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
           {opponents.map(p => renderOpponent(p.id))}
         </div>
       </div>
 
       {/* ── STATUS BAR ── */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-2 py-1 text-xs">
+      <div className="flex items-center gap-2 px-2 py-1 text-xs">
         <span className="text-gray-500">第{state.round}回合</span>
         <span className="text-gray-600">牌堆:{state.deck.length}</span>
         <span className="text-gray-600">棄牌:{state.discardPile.length}</span>
@@ -156,7 +156,7 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
       </div>
 
       {/* ── HUMAN + ACTION PANEL ── */}
-      <div className="flex-1 min-h-0 flex flex-col sm:flex-row gap-2 px-2 pb-2">
+      <div className="flex flex-col sm:flex-row gap-2 px-2 pb-4">
 
         {/* Human player board */}
         <div className="flex-shrink-0 self-start">
@@ -169,8 +169,8 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
           />
         </div>
 
-        {/* Action panel */}
-        <div className="flex-1 min-h-0 bg-black/30 rounded-xl border border-amber-900/30 p-2 overflow-y-auto">
+        {/* Action panel — grows to fit content, no overflow clipping */}
+        <div className="flex-1 bg-black/30 rounded-xl border border-amber-900/30 p-2">
           <ActionPanel state={state} dispatch={dispatch} />
         </div>
       </div>
