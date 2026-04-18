@@ -761,7 +761,7 @@ function skipResponse(state: GameState): GameState {
 
   if (pa.type === 'respond_sha') {
     const s = applyDamage(state, pa.actorId, pa.damage ?? 1, pa.sourcePlayerId, pa.isFire);
-    let s2 = { ...s, pendingAction: null };
+    let s2: GameState = { ...s, pendingAction: null };
     if (s2.gameOver) return s2;
     // 馬超 鐵騎：殺命中後，目標棄置一張手牌
     const attacker = state.players.find(p => p.id === pa.sourcePlayerId);

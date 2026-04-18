@@ -139,14 +139,14 @@ function OnlineGameInstance({
     socket.on('state_update', onStateUpdate);
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);
-    socket.on('reconnect_attempt', onReconnectAttempt);
+    socket.io.on('reconnect_attempt', onReconnectAttempt);
     socket.on('server_error', onError);
 
     return () => {
       socket.off('state_update', onStateUpdate);
       socket.off('disconnect', onDisconnect);
       socket.off('connect', onConnect);
-      socket.off('reconnect_attempt', onReconnectAttempt);
+      socket.io.off('reconnect_attempt', onReconnectAttempt);
       socket.off('server_error', onError);
     };
   }, [myPlayerId]);
