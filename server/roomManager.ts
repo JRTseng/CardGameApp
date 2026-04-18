@@ -19,6 +19,7 @@ export interface RoomPublic {
   players: RoomPlayer[];
   status: 'waiting' | 'playing';
   maxPlayers: number;
+  rolesAssigned: boolean;
 }
 
 interface Room {
@@ -29,6 +30,8 @@ interface Room {
   gameState: GameState | null;
   socketToPlayerId: Map<string, number>;
   aiTimer: ReturnType<typeof setTimeout> | null;
+  preAssignedRoles?: Role[];
+  rolesAssigned: boolean;
 }
 
 export class RoomManager {
@@ -50,6 +53,7 @@ export class RoomManager {
       gameState: null,
       socketToPlayerId: new Map(),
       aiTimer: null,
+      rolesAssigned: false,
     };
     this.rooms.set(id, room);
     this.socketToRoom.set(socketId, id);
@@ -97,7 +101,7 @@ export class RoomManager {
     const available = shuffle(ALL_CHARACTERS.map(c => c.id).filter(id => !usedChars.has(id)));
     room.players.forEach(p => { if (!p.characterId) { p.characterId = available.pop() ?? ALL_CHARACTERS[0].id; } });
 
-    const state = buildGameState(room.players, room.maxPlayers);
+    const state = buildGameState(room.players, room.maxPlayers, room.preAssignedRoles);
     room.socketToPlayerId = new Map(room.players.map((p, i) => [p.socketId, i]));
     room.gameState = state;
     room.status = 'playing';
@@ -177,16 +181,32 @@ export class RoomManager {
     return [{ roomId, pub: this.toPublic(room), gameState: room.gameState ?? undefined }];
   }
 
+  preAssignRoles(roomId: string, hostSocketId: string): { ok: boolean; error?: string; roleMap?: Map<string, Role> } {
+    const room = this.rooms.get(roomId);
+    if (!room) return { ok: false, error: '找不到房間' };
+    if (room.players[0].socketId !== hostSocketId) return { ok: false, error: '只有房主可以操作' };
+    if (room.rolesAssigned) return { ok: true, roleMap: new Map() };
+
+    const allRoles = getRolesForCount(room.maxPlayers);
+    const roles = shuffle(allRoles);
+    room.preAssignedRoles = roles;
+    room.rolesAssigned = true;
+
+    const roleMap = new Map<string, Role>();
+    room.players.forEach((p, i) => roleMap.set(p.socketId, roles[i]));
+    return { ok: true, roleMap };
+  }
+
   toPublic(room: Room): RoomPublic {
-    return { id: room.id, players: room.players, status: room.status, maxPlayers: room.maxPlayers };
+    return { id: room.id, players: room.players, status: room.status, maxPlayers: room.maxPlayers, rolesAssigned: room.rolesAssigned };
   }
 }
 
 // ─── Build game state from room players ───────────────────────────────────────
 
-function buildGameState(humanPlayers: RoomPlayer[], maxPlayers: number): GameState {
+function buildGameState(humanPlayers: RoomPlayer[], maxPlayers: number, preAssignedRoles?: Role[]): GameState {
   const allRoles = getRolesForCount(maxPlayers);
-  const roles: Role[] = shuffle(allRoles);
+  const roles: Role[] = preAssignedRoles ?? shuffle(allRoles);
 
   const humanCharIds = new Set(humanPlayers.map(p => p.characterId!));
   const aiChars = shuffle(ALL_CHARACTERS.filter(c => !humanCharIds.has(c.id)));

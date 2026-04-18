@@ -62,6 +62,17 @@ io.on('connection', (socket) => {
     if (room) io.to(roomId).emit('room_update', { room });
   });
 
+  socket.on('reveal_roles', ({ roomId }, cb) => {
+    const result = rooms.preAssignRoles(roomId, socket.id);
+    if (!result.ok) { cb?.({ error: result.error }); return; }
+    result.roleMap!.forEach((role, sid) => {
+      io.to(sid).emit('your_role', { role });
+    });
+    const pub = rooms.toPublic(rooms.rooms.get(roomId)!);
+    io.to(roomId).emit('room_update', { room: pub });
+    cb?.({ ok: true });
+  });
+
   socket.on('start_game', ({ roomId }, cb) => {
     const result = rooms.startGame(roomId, socket.id, onAIAction);
     if (!result.ok) { cb({ error: result.error }); return; }

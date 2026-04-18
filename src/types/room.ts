@@ -13,6 +13,7 @@ export interface RoomState {
   players: RoomPlayer[];
   status: 'waiting' | 'playing';
   maxPlayers: number;
+  rolesAssigned: boolean;
 }
 
 // GameAction is imported from engine by consumers; use unknown here to avoid circular deps

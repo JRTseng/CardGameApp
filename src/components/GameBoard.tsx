@@ -154,18 +154,18 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
         </div>
       </div>
 
-      {/* ── GAME LOG (bottom, fills remaining space) ── */}
-      <div className="flex-1 mx-2 mt-2 mb-3 flex flex-col min-h-32 bg-black/40 rounded-xl border border-amber-900/25">
+      {/* ── GAME LOG ── */}
+      <div className="mx-2 mt-2 mb-3 bg-black/40 rounded-xl border border-amber-900/25">
         <div className="px-3 py-1.5 border-b border-amber-900/20">
           <span className="text-amber-600 font-semibold text-xs tracking-wide">出牌紀錄</span>
         </div>
-        <div className="flex-1 overflow-y-auto px-3 py-2 text-xs">
-          {state.log.map((entry, i) => (
+        <div className="h-40 overflow-y-auto px-3 py-2 text-xs flex flex-col-reverse">
+          <div ref={logEndRef} />
+          {[...state.log].reverse().map((entry, i) => (
             <div key={i} className="text-gray-400 leading-relaxed py-0.5 border-b border-white/5 last:border-0">
               {entry}
             </div>
           ))}
-          <div ref={logEndRef} />
         </div>
       </div>
     </div>
