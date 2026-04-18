@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getSocket } from '../socket/client';
 import { ALL_CHARACTERS } from '../data/characters';
 import { ROLE_DIST_LABEL } from '../data/roles';
