@@ -141,6 +141,16 @@ export default function ActionPanel({ state, dispatch }: Props) {
             onConfirm={(tid, ids) => dispatch({ type: 'SKILL_GIVE_CARD', targetId: tid, cardIds: ids })}
           />
         )}
+        {/* 黃蓋 苦肉 */}
+        {char.id === 'huanggai' && !currentPlayer.skillUsed && currentPlayer.hp > 1 && (
+          <button
+            onClick={() => dispatch({ type: 'SKILL_KULOU' })}
+            className="w-full py-2 bg-orange-800 hover:bg-orange-700 text-white rounded-lg text-sm font-bold border border-orange-600 transition-colors"
+          >
+            苦肉：失去1血，摸3張牌
+          </button>
+        )}
+
         {hasActiveSkill && char.id === 'sunshangxiang' && (
           <GiveCardPanel
             player={currentPlayer}

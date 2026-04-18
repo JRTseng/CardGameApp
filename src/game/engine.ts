@@ -90,10 +90,16 @@ function applyDamage(
   target.hp = Math.max(0, target.hp - dmg);
   log.push(`${target.name} 受到 ${dmg} 點${isFire ? '火焰' : ''}傷害 (${target.hp}/${target.maxHp})`);
 
-  // 曹操 奸雄: draw 1 card when damaged
-  if (target.character.id === 'caocao' && dmg > 0) {
-    log.push(`曹操 奸雄：摸1張牌`);
-    return checkDeath(drawN({ ...state, players, log }, targetId, 1), targetId, sourcePlayerId);
+  if (dmg > 0) {
+    // 曹操 奸雄 / 夏侯惇 剛烈: draw 1 when damaged
+    if (target.character.id === 'caocao') {
+      log.push(`曹操 奸雄：摸1張牌`);
+      return checkDeath(drawN({ ...state, players, log }, targetId, 1), targetId, sourcePlayerId);
+    }
+    if (target.character.id === 'xiahoudun') {
+      log.push(`夏侯惇 剛烈：摸1張牌`);
+      return checkDeath(drawN({ ...state, players, log }, targetId, 1), targetId, sourcePlayerId);
+    }
   }
 
   return checkDeath({ ...state, players, log }, targetId, sourcePlayerId);
@@ -345,7 +351,7 @@ function playFromHand(state: GameState, playerId: number, cardId: string): [Game
 
 function resolveWanjian(state: GameState, sourceId: number, card: Card): GameState {
   const targets = state.players
-    .filter(p => p.isAlive && p.id !== sourceId)
+    .filter(p => p.isAlive && p.id !== sourceId && p.character.id !== 'luxun') // 陸遜 謙遜
     .map(p => p.id);
   if (targets.length === 0) return state;
   const [first, ...rest] = targets;
@@ -365,7 +371,7 @@ function resolveWanjian(state: GameState, sourceId: number, card: Card): GameSta
 
 function resolveNanman(state: GameState, sourceId: number, card: Card): GameState {
   const targets = state.players
-    .filter(p => p.isAlive && p.id !== sourceId)
+    .filter(p => p.isAlive && p.id !== sourceId && p.character.id !== 'luxun') // 陸遜 謙遜
     .map(p => p.id);
   if (targets.length === 0) return state;
   const [first, ...rest] = targets;
@@ -419,6 +425,7 @@ export type GameAction =
   | { type: 'SKIP_RESPONSE' }
   | { type: 'SKILL_GIVE_CARD'; targetId: number; cardIds: string[] }
   | { type: 'SKILL_ZHIHENG'; cardIds: string[] }
+  | { type: 'SKILL_KULOU' }
   | { type: 'AI_ACTION' };
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -499,6 +506,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return skillZhiheng(state, player.id, action.cardIds);
     }
 
+    case 'SKILL_KULOU': {
+      const player = state.players[state.currentPlayerIndex];
+      if (!player.isHuman || player.character.id !== 'huanggai' || player.skillUsed) return state;
+      return skillKulou(state, player.id);
+    }
+
     case 'AI_ACTION':
       return handleAIAction(state);
 
@@ -528,6 +541,21 @@ function playCardNoTarget(state: GameState, playerId: number, card: Card): GameS
       players,
       discardPile: [...s.discardPile, c],
       log: [...s.log, `${p.name} 使用【桃】，回復至 ${p.hp}/${p.maxHp} 血`],
+    };
+  }
+
+  // 華佗 青嚢: ♣ trick card used as 桃
+  if (player.character.id === 'huatuo' && card.suit === '♣' && card.category === 'trick' && player.hp < player.maxHp) {
+    const [s, c] = playFromHand(state, playerId, card.id);
+    if (!c) return state;
+    const players = clonePlayers(s.players);
+    const p = players.find(pp => pp.id === playerId)!;
+    p.hp = Math.min(p.hp + 1, p.maxHp);
+    return {
+      ...s,
+      players,
+      discardPile: [...s.discardPile, c],
+      log: [...s.log, `${p.name} 青嚢：棄【${c.name}】回復1血 (→${p.hp}/${p.maxHp})`],
     };
   }
 
@@ -604,13 +632,18 @@ function playCardOnTarget(state: GameState, playerId: number, card: Card, target
     // 朱雀羽扇 使殺視為火殺
     const isFire = c.type === 'sha_fire' || player.equipment.weapon?.type === 'zhuque_yu';
     // 周瑜 縱火：火殺傷害+1
-    const dmg = (isFire && player.character.id === 'zhouyu') ? 2 : 1;
+    let dmg = (isFire && player.character.id === 'zhouyu') ? 2 : 1;
+    // 許褚 裸衣：HP ≤ 半血時殺傷害+1
+    const isXuchu = player.character.id === 'xuchu';
+    if (isXuchu && player.hp <= Math.floor(player.maxHp / 2)) dmg += 1;
+    // 呂布 無雙：目標需出2張閃
+    const isLubu = player.character.id === 'lubu';
 
-    return {
+    let result: GameState = {
       ...s,
       players,
       discardPile: [...s.discardPile, c],
-      log: [...s.log, `${player.name} 對 ${target.name} 使用【${c.name}】`],
+      log: [...s.log, `${player.name} 對 ${target.name} 使用【${c.name}】${isXuchu && dmg > 1 ? '（裸衣+1）' : ''}`],
       pendingAction: {
         type: 'respond_sha',
         actorId: targetId,
@@ -618,11 +651,19 @@ function playCardOnTarget(state: GameState, playerId: number, card: Card, target
         sourceCardId: c.id,
         isFire,
         damage: dmg,
-        message: isFire
-          ? `遭受【火殺】！請出【閃】（仁王盾無效），否則受${dmg}點火焰傷害`
-          : `遭受【殺】攻擊！請出【閃】，否則受1點傷害`,
+        shanNeeded: isLubu ? 2 : undefined,
+        message: isLubu
+          ? `遭受【無雙】！需出2張【閃】方可閃避！`
+          : isFire
+            ? `遭受【火殺】！請出【閃】（仁王盾無效），否則受${dmg}點火焰傷害`
+            : `遭受【殺】攻擊！請出【閃】，否則受1點傷害`,
       },
     };
+    // 太史慈 天義：使用殺後摸1張牌
+    if (player.character.id === 'taishici') {
+      result = drawN({ ...result, log: [...result.log, `太史慈 天義：摸1張牌`] }, playerId, 1);
+    }
+    return result;
   }
 
   if (card.type === 'juedou') {
@@ -723,6 +764,14 @@ function respondWithCard(state: GameState, actorId: number, cardId: string): Gam
     const [s, used] = playFromHand(state, actorId, cardId);
     if (!used) return state;
     const s2 = { ...s, discardPile: [...s.discardPile, used] };
+    // 呂布 無雙：目標需出2張閃才能閃避
+    if (pa.type === 'respond_sha' && pa.shanNeeded && pa.shanNeeded > 1) {
+      return {
+        ...s2,
+        log: [...s2.log, `${actor.name} 出【${used.name}】（呂布 無雙：還需再出1張【閃】）`],
+        pendingAction: { ...pa, shanNeeded: pa.shanNeeded - 1, message: `【無雙】：請再出1張【閃】方可閃避！` },
+      };
+    }
     return resolveAfterDefend({ ...s2, log: [...s2.log, `${actor.name} 使用【${used.name}】閃避`] }, pa);
   }
 
@@ -768,8 +817,23 @@ function skipResponse(state: GameState): GameState {
     const s = applyDamage(state, pa.actorId, pa.damage ?? 1, pa.sourcePlayerId, pa.isFire);
     let s2: GameState = { ...s, pendingAction: null };
     if (s2.gameOver) return s2;
-    // 馬超 鐵騎：殺命中後，目標棄置一張手牌
+
     const attacker = state.players.find(p => p.id === pa.sourcePlayerId);
+    const victim = s2.players.find(p => p.id === pa.actorId);
+
+    // 司馬懿 鬼才：受傷後從攻擊者手中獲得1張牌
+    if (victim?.isAlive && victim.character.id === 'simayi' && attacker) {
+      const atk = s2.players.find(p => p.id === attacker.id);
+      if (atk?.isAlive && atk.hand.length > 0) {
+        const idx = Math.floor(Math.random() * atk.hand.length);
+        const stolen = atk.hand[idx];
+        const players = clonePlayers(s2.players);
+        players.find(p => p.id === atk.id)!.hand.splice(idx, 1);
+        players.find(p => p.id === victim.id)!.hand.push(stolen);
+        s2 = { ...s2, players, log: [...s2.log, `司馬懿 鬼才：從 ${atk.name} 獲得【${stolen.name}】`] };
+      }
+    }
+    // 馬超 鐵騎：殺命中後，目標棄置一張手牌
     if (attacker?.character.id === 'maochao') {
       const target = s2.players.find(p => p.id === pa.actorId);
       if (target?.isAlive && target.hand.length > 0) {
@@ -878,6 +942,19 @@ function skillZhiheng(state: GameState, playerId: number, cardIds: string[]): Ga
     players,
     log: [...s.log, `孫權 制衡：棄${cardIds.length}張，摸${cardIds.length}張`],
   };
+}
+
+function skillKulou(state: GameState, playerId: number): GameState {
+  const player = state.players.find(p => p.id === playerId)!;
+  if (player.hp <= 1) return state; // 防止自殺
+  let s = applyDamage(state, playerId, 1, playerId);
+  if (s.gameOver) return s;
+  const p2 = s.players.find(p => p.id === playerId);
+  if (!p2?.isAlive) return s;
+  s = drawN(s, playerId, 3);
+  const players = clonePlayers(s.players);
+  players.find(p => p.id === playerId)!.skillUsed = true;
+  return { ...s, players, log: [...s.log, `黃蓋 苦肉：失去1血，摸3張牌`] };
 }
 
 // ─── AI ───────────────────────────────────────────────────────────────────────
@@ -1007,6 +1084,19 @@ function aiPlayTurn(state: GameState, player: Player): GameState {
   }
 
   // AI skills
+  // 黃蓋 苦肉: use when HP > 2 and hand is thin
+  const curPHg = s.players.find(p => p.id === player.id)!;
+  if (curPHg.character.id === 'huanggai' && !curPHg.skillUsed && curPHg.hp > 2 && curPHg.hand.length < 3) {
+    s = skillKulou(s, curPHg.id);
+  }
+
+  // 華佗 青嚢: use ♣ trick as tao when HP < max
+  const curPHt = s.players.find(p => p.id === player.id)!;
+  if (curPHt.character.id === 'huatuo' && curPHt.hp < curPHt.maxHp) {
+    const clubTrick = curPHt.hand.find(c => c.suit === '♣' && c.category === 'trick');
+    if (clubTrick) s = playCardNoTarget(s, curPHt.id, clubTrick);
+  }
+
   const curP2 = s.players.find(p => p.id === player.id)!;
   if (curP2.character.id === 'sunquan' && !curP2.skillUsed && curP2.hand.length > 0) {
     const badCards = curP2.hand.filter(c =>

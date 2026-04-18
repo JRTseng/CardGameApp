@@ -89,6 +89,7 @@ export interface PendingAction {
   remainingTargets?: number[];
   juedouNextAttacker?: number;
   juedouLastShaPlayerId?: number;
+  shanNeeded?: number; // 呂布 無雙: 2 shan required to dodge
   message: string;
   // for selecting target
   selectingCardId?: string;

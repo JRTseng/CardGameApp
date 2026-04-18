@@ -28,17 +28,33 @@ const SKILL_TYPE_LABEL: Record<string, string> = {
   passive: '被動', active: '主動', trigger: '觸發',
 };
 
+function shuffleArr<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function GameSetup({ onStart, onBack }: Props) {
   const [selected, setSelected] = useState<Character | null>(null);
   const [playerCount, setPlayerCount] = useState(4);
+  const [choices, setChoices] = useState<Character[]>(() => shuffleArr(ALL_CHARACTERS).slice(0, 5));
+
+  const redraw = () => {
+    setSelected(null);
+    setChoices(shuffleArr(ALL_CHARACTERS).slice(0, 5));
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-950 via-amber-950/10 to-stone-950 flex flex-col items-center justify-center p-6 overflow-auto">
       {onBack && (
         <button onClick={onBack} className="absolute top-4 left-4 text-gray-500 hover:text-gray-300 text-sm">← 返回</button>
       )}
+
       {/* Title */}
-      <div className="mb-8 text-center">
+      <div className="mb-6 text-center">
         <h1 className="text-5xl font-bold text-amber-400 tracking-wider mb-2" style={{ fontFamily: 'serif' }}>
           三國決殺
         </h1>
@@ -46,21 +62,83 @@ export default function GameSetup({ onStart, onBack }: Props) {
       </div>
 
       {/* Player count selector */}
-      <div className="w-full max-w-sm mb-6 bg-black/30 rounded-xl border border-amber-900/30 p-4">
+      <div className="w-full max-w-sm mb-5 bg-black/30 rounded-xl border border-amber-900/30 p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-gray-300 font-bold">遊戲人數</span>
           <span className="text-amber-400 font-bold text-xl">{playerCount} 人</span>
         </div>
         <input
-          type="range"
-          min={2}
-          max={15}
-          value={playerCount}
+          type="range" min={2} max={15} value={playerCount}
           onChange={e => setPlayerCount(Number(e.target.value))}
           className="w-full accent-amber-500 mb-2"
         />
         <div className="text-gray-500 text-xs text-center">{ROLE_DIST_LABEL[playerCount]}</div>
         <div className="text-gray-600 text-xs text-center mt-1">玩家擔任主公 + {playerCount - 1} 個AI對手</div>
+      </div>
+
+      {/* Character selection */}
+      <div className="w-full max-w-3xl">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-white text-lg font-bold">選擇你的武將</h2>
+          <button
+            onClick={redraw}
+            className="text-sm text-amber-400 border border-amber-700 rounded-lg px-3 py-1 hover:bg-amber-900/30 transition-colors"
+          >
+            🎲 重新抽取
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+          {choices.map(char => {
+            const isSelected = selected?.id === char.id;
+            return (
+              <div
+                key={char.id}
+                onClick={() => setSelected(char)}
+                className={[
+                  'relative border-2 rounded-xl p-3 cursor-pointer transition-all duration-150',
+                  KINGDOM_COLOR[char.kingdom],
+                  isSelected ? 'ring-2 ring-yellow-400 scale-105 shadow-lg shadow-yellow-400/30' : '',
+                ].join(' ')}
+              >
+                {isSelected && (
+                  <div className="absolute -top-2 -right-2 bg-yellow-500 rounded-full w-5 h-5 flex items-center justify-center text-black text-xs font-bold">✓</div>
+                )}
+
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-3xl">{char.portrait}</span>
+                  <div>
+                    <div className="text-white font-bold text-lg">{char.name}</div>
+                    <div className="text-gray-400 text-xs">{KINGDOM_LABEL[char.kingdom]}</div>
+                  </div>
+                </div>
+
+                {/* HP as lord */}
+                <div className="flex gap-0.5 flex-wrap mb-2 items-center">
+                  {Array.from({ length: char.baseHp + 1 }).map((_, i) => (
+                    <span key={i} className="text-xs">❤️</span>
+                  ))}
+                  <span className="text-gray-500 text-xs ml-1">{char.baseHp + 1}血</span>
+                </div>
+
+                {/* Skill */}
+                <div>
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className={`text-xs px-1 rounded ${SKILL_TYPE_BADGE[char.skill.type]}`}>
+                      {SKILL_TYPE_LABEL[char.skill.type]}
+                    </span>
+                    <span className="text-amber-300 font-bold text-sm">{char.skill.name}</span>
+                  </div>
+                  <p className="text-gray-400 text-xs leading-tight">{char.skill.description}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="text-gray-500 text-xs text-center mb-4">
+          共 {ALL_CHARACTERS.length} 位武將可選 · AI 從剩餘武將中隨機選取，不重複
+        </div>
       </div>
 
       {/* Roles legend */}
@@ -76,56 +154,6 @@ export default function GameSetup({ onStart, onBack }: Props) {
             <div className="text-gray-500 text-xs">{r.desc}</div>
           </div>
         ))}
-      </div>
-
-      {/* Character selection */}
-      <h2 className="text-white text-xl font-bold text-center mb-4">選擇你的武將</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mb-6">
-        {ALL_CHARACTERS.map(char => {
-          const isSelected = selected?.id === char.id;
-          return (
-            <div
-              key={char.id}
-              onClick={() => setSelected(char)}
-              className={[
-                'relative border-2 rounded-xl p-3 cursor-pointer transition-all duration-150',
-                KINGDOM_COLOR[char.kingdom],
-                isSelected ? 'ring-2 ring-yellow-400 scale-105 shadow-lg shadow-yellow-400/30' : '',
-              ].join(' ')}
-            >
-              {isSelected && (
-                <div className="absolute -top-2 -right-2 bg-yellow-500 rounded-full w-5 h-5 flex items-center justify-center text-black text-xs font-bold">✓</div>
-              )}
-
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-3xl">{char.portrait}</span>
-                <div>
-                  <div className="text-white font-bold text-lg">{char.name}</div>
-                  <div className="text-gray-400 text-xs">{KINGDOM_LABEL[char.kingdom]}</div>
-                </div>
-              </div>
-
-              {/* HP as lord */}
-              <div className="flex gap-0.5 flex-wrap mb-2 items-center">
-                {Array.from({ length: char.baseHp + 1 }).map((_, i) => (
-                  <span key={i} className="text-xs">❤️</span>
-                ))}
-                <span className="text-gray-500 text-xs ml-1">{char.baseHp + 1}血</span>
-              </div>
-
-              {/* Skill */}
-              <div>
-                <div className="flex items-center gap-1 mb-1">
-                  <span className={`text-xs px-1 rounded ${SKILL_TYPE_BADGE[char.skill.type]}`}>
-                    {SKILL_TYPE_LABEL[char.skill.type]}
-                  </span>
-                  <span className="text-amber-300 font-bold text-sm">{char.skill.name}</span>
-                </div>
-                <p className="text-gray-400 text-xs leading-tight">{char.skill.description}</p>
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {/* Start button */}

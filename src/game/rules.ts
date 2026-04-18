@@ -28,6 +28,7 @@ export function cardCanBeShan(card: Card, player: Player): boolean {
 export function canUseSha(player: Player): boolean {
   if (player.character.id === 'zhangfei') return true;
   if (player.equipment.weapon?.type === 'zhuge_nu') return true;
+  if (player.character.id === 'zhangliao') return player.shaCount < 2; // 突擊
   return player.shaCount === 0;
 }
 
@@ -137,8 +138,10 @@ export function canPlayCard(card: Card, player: Player, state: GameState): boole
     case 'basic':
       if (card.type === 'tao') return player.hp < player.maxHp;
       if (cardCanBeSha(card, player)) return canUseSha(player) && getShaTargets(player, state).length > 0;
-      return false; // 閃 can't be played directly
+      return false;
     case 'trick':
+      // 華佗 青嚢: ♣ trick cards can be used as 桃 when HP < maxHp
+      if (player.character.id === 'huatuo' && card.suit === '♣' && player.hp < player.maxHp) return true;
       if (card.type === 'wanjian' || card.type === 'nanman' || card.type === 'wuzhong') return true;
       if (card.type === 'taoyuan') return state.players.some(p => p.isAlive && p.hp < p.maxHp);
       if (card.type === 'wugu') return true;
@@ -158,6 +161,8 @@ export function canPlayCard(card: Card, player: Player, state: GameState): boole
 
 /** Whether this card needs a target when played */
 export function needsTarget(card: Card, player: Player): boolean {
+  // 華佗 青嚢: ♣ trick cards used as tao need no target
+  if (player.character.id === 'huatuo' && card.suit === '♣' && card.category === 'trick') return false;
   if (cardCanBeSha(card, player)) return true;
   if (card.type === 'juedou') return true;
   if (card.type === 'guohe') return true;
