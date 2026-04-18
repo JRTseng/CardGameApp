@@ -1,9 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getSocket } from '../socket/client';
 import { ALL_CHARACTERS } from '../data/characters';
 import { ROLE_DIST_LABEL } from '../data/roles';
 import type { RoomState, RoomPlayer } from '../types/room';
 import type { GameState } from '../types/game';
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 interface Props {
   initialRoom: RoomState;
@@ -26,6 +35,7 @@ export default function RoomScreen({ initialRoom, onGameStart, onBack }: Props) 
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
+  const [charPool, setCharPool] = useState(() => shuffle(ALL_CHARACTERS).slice(0, 5));
 
   const socket = getSocket();
   const myPlayer = room.players.find(p => p.socketId === socket.id);
@@ -120,9 +130,17 @@ export default function RoomScreen({ initialRoom, onGameStart, onBack }: Props) 
 
       {/* Character selection */}
       <div>
-        <h3 className="text-amber-400 font-bold mb-2 text-sm">選擇武將</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-amber-400 font-bold text-sm">選擇武將</h3>
+          <button
+            onClick={() => { setSelectedChar(null); setCharPool(shuffle(ALL_CHARACTERS).slice(0, 5)); }}
+            className="text-sm text-amber-400 border border-amber-700 rounded-lg px-3 py-1 hover:bg-amber-900/30 transition-colors"
+          >
+            🎲 重新抽取
+          </button>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {ALL_CHARACTERS.map(char => {
+          {charPool.map(char => {
             const isMine = myPlayer?.characterId === char.id;
             const isTaken = takenChars.has(char.id) && !isMine;
             const isSelected = selectedChar === char.id || isMine;

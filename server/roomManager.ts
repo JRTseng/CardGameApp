@@ -186,9 +186,7 @@ export class RoomManager {
 
 function buildGameState(humanPlayers: RoomPlayer[], maxPlayers: number): GameState {
   const allRoles = getRolesForCount(maxPlayers);
-  const lordRole: Role = 'lord';
-  const otherRoles = shuffle(allRoles.filter(r => r !== lordRole));
-  const roles: Role[] = [lordRole, ...otherRoles];
+  const roles: Role[] = shuffle(allRoles);
 
   const humanCharIds = new Set(humanPlayers.map(p => p.characterId!));
   const aiChars = shuffle(ALL_CHARACTERS.filter(c => !humanCharIds.has(c.id)));

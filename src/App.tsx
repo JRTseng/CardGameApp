@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useState, useCallback } from 'react';
+import { useReducer, useEffect, useRef, useState, useCallback } from 'react';
 import type { GameState, Role } from './types/game';
 import type { RoomState } from './types/room';
 import { gameReducer, initGame, type GameAction } from './game/engine';
@@ -8,6 +8,13 @@ import LobbyScreen from './screens/LobbyScreen';
 import RoomScreen from './screens/RoomScreen';
 import GameSetup from './components/GameSetup';
 import GameBoard from './components/GameBoard';
+
+const ROLE_META: Record<Role, { label: string; color: string; border: string; bg: string; icon: string; desc: string }> = {
+  lord:     { label: '主公', color: 'text-yellow-300', border: 'border-yellow-400', bg: 'from-yellow-900 to-amber-800', icon: '👑', desc: '統領全軍，消滅所有叛逆！' },
+  loyalist: { label: '忠臣', color: 'text-green-300',  border: 'border-green-400',  bg: 'from-green-900 to-emerald-800', icon: '🛡️', desc: '忠心護主，輔佐主公奪勝！' },
+  rebel:    { label: '反賊', color: 'text-red-300',    border: 'border-red-400',    bg: 'from-red-900 to-rose-800',     icon: '⚔️', desc: '揭竿而起，擊殺主公取天下！' },
+  spy:      { label: '內奸', color: 'text-purple-300', border: 'border-purple-400', bg: 'from-purple-900 to-violet-800', icon: '🎭', desc: '心懷異志，最後一人贏天下！' },
+};
 
 type Screen = 'menu' | 'setup' | 'lobby' | 'room' | 'game_solo' | 'game_online';
 
@@ -127,7 +134,20 @@ function OnlineGameInstance({
   );
   const [connected, setConnected] = useState(true);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [revealing, setRevealing] = useState(true);
+  const [animOut, setAnimOut] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const socket = getSocket();
+
+  const myRole = state.players.find(p => p.id === myPlayerId)?.role ?? 'rebel';
+  const m = ROLE_META[myRole];
+
+  useEffect(() => {
+    if (!revealing) return;
+    timerRef.current = setTimeout(() => setAnimOut(true), 2200);
+    const t2 = setTimeout(() => setRevealing(false), 3000);
+    return () => { clearTimeout(timerRef.current!); clearTimeout(t2); };
+  }, [revealing]);
 
   useEffect(() => {
     const onStateUpdate = ({ state: newState }: { state: GameState }) => {
@@ -159,6 +179,38 @@ function OnlineGameInstance({
     setState(prev => personalizeState(gameReducer(prev, action), myPlayerId));
     socket.emit('player_action', { roomId, action });
   }, [roomId, myPlayerId]);
+
+  if (revealing) {
+    return (
+      <div
+        className="min-h-screen bg-gradient-to-br from-stone-950 via-amber-950/10 to-stone-950 flex flex-col items-center justify-center p-6 cursor-pointer"
+        onClick={() => { if (timerRef.current) clearTimeout(timerRef.current); setRevealing(false); }}
+      >
+        <div className={`transition-all duration-700 ${animOut ? 'opacity-0 scale-75' : 'opacity-100 scale-100'} role-reveal-enter`}>
+          <div className="text-center mb-8">
+            <p className="text-gray-400 text-sm tracking-widest uppercase mb-2">身份揭曉</p>
+            <div className="w-24 h-px bg-amber-700 mx-auto" />
+          </div>
+          <div
+            className={`relative w-72 mx-auto rounded-3xl border-4 ${m.border} bg-gradient-to-br ${m.bg} p-8 text-center shadow-2xl`}
+            style={{ boxShadow: `0 0 60px 10px rgba(0,0,0,0.6)` }}
+          >
+            <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-white/20 rounded-tl-xl" />
+            <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-white/20 rounded-tr-xl" />
+            <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-white/20 rounded-bl-xl" />
+            <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-white/20 rounded-br-xl" />
+            <div className="text-6xl mb-4 animate-bounce">{m.icon}</div>
+            <div className={`text-5xl font-bold mb-3 ${m.color}`} style={{ fontFamily: 'serif', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+              {m.label}
+            </div>
+            <div className="w-16 h-px bg-white/20 mx-auto mb-3" />
+            <p className="text-gray-300 text-base leading-relaxed">{m.desc}</p>
+          </div>
+          <p className="text-gray-600 text-sm text-center mt-8 animate-pulse">點擊任意處繼續</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">

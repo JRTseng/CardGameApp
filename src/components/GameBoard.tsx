@@ -4,7 +4,6 @@ import type { GameAction } from '../game/engine';
 import { getShaTargets, getTrickTargets, needsTarget, cardCanBeSha } from '../game/rules';
 import PlayerBoard from './PlayerBoard';
 import ActionPanel from './ActionPanel';
-import GameLog from './GameLog';
 
 interface Props {
   state: GameState;
@@ -22,8 +21,8 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
   const pa = state.pendingAction;
 
   const [showTurnAlert, setShowTurnAlert] = useState(false);
-  const [showLog, setShowLog] = useState(false);
   const wasHumanTurnRef = useRef(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
   const isHumanTurn = !state.gameOver && !pa && state.phase === 'play'
     && state.players[state.currentPlayerIndex].id === human.id;
 
@@ -36,6 +35,10 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
     }
     if (!isHumanTurn) wasHumanTurnRef.current = false;
   }, [isHumanTurn]);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [state.log.length]);
 
   const getTargetableIds = useCallback((): Set<number> => {
     if (!state.selectedCardId) return new Set();
@@ -117,24 +120,6 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
         </div>
       )}
 
-      {/* Log overlay (mobile toggle) */}
-      {showLog && (
-        <div className="fixed inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col p-4" onClick={() => setShowLog(false)}>
-          <div className="flex-1 overflow-y-auto bg-stone-900 rounded-xl p-3" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-amber-400 font-bold text-sm">遊戲紀錄</span>
-              <button onClick={() => setShowLog(false)} className="text-gray-400 text-sm">✕ 關閉</button>
-            </div>
-            <GameLog
-              log={state.log}
-              deckCount={state.deck.length}
-              discardCount={state.discardPile.length}
-              round={state.round}
-            />
-          </div>
-        </div>
-      )}
-
       {/* ── OPPONENTS ROW (sticky) ── */}
       <div className="sticky top-0 z-10 bg-stone-950/95 backdrop-blur-sm px-2 pt-2 pb-1 border-b border-amber-900/20">
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
@@ -143,16 +128,25 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
       </div>
 
       {/* ── STATUS BAR ── */}
-      <div className="flex items-center gap-2 px-2 py-1 text-xs">
+      <div className="flex items-center gap-2 px-2 py-1 text-xs border-b border-amber-900/10">
         <span className="text-gray-500">第{state.round}回合</span>
         <span className="text-gray-600">牌堆:{state.deck.length}</span>
         <span className="text-gray-600">棄牌:{state.discardPile.length}</span>
-        <button
-          onClick={() => setShowLog(true)}
-          className="ml-auto text-amber-500 border border-amber-800 rounded px-2 py-0.5 text-xs hover:bg-amber-900/30"
-        >
-          紀錄
-        </button>
+      </div>
+
+      {/* ── INLINE GAME LOG ── */}
+      <div className="mx-2 my-1 bg-black/40 rounded-lg border border-amber-900/20 text-xs">
+        <div className="px-2 pt-1.5 pb-0.5">
+          <span className="text-amber-700 font-semibold">出牌紀錄</span>
+        </div>
+        <div className="overflow-y-auto px-2 pb-1.5 max-h-28">
+          {state.log.slice(-20).map((entry, i) => (
+            <div key={i} className="text-gray-400 leading-snug py-0.5 border-b border-white/5 last:border-0">
+              {entry}
+            </div>
+          ))}
+          <div ref={logEndRef} />
+        </div>
       </div>
 
       {/* ── HUMAN + ACTION PANEL ── */}
