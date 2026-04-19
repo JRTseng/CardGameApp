@@ -35,23 +35,30 @@ export default function ActionPanel({ state, dispatch, turnDeadline, aiAssist, o
   const pa = state.pendingAction;
   const secsLeft = useCountdown(turnDeadline);
 
+  // Persistent AI assist toggle — shown at bottom of every panel when online
+  const aiToggleBtn = onToggleAiAssist ? (
+    <button
+      onClick={onToggleAiAssist}
+      className={`w-full py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+        aiAssist
+          ? 'bg-indigo-800 hover:bg-indigo-700 text-white border-indigo-600'
+          : 'bg-gray-900 hover:bg-indigo-950 text-indigo-400 border-indigo-800/50'
+      }`}
+    >
+      {aiAssist ? '🤖 AI代打中（點擊停止）' : '🤖 AI代打'}
+    </button>
+  ) : null;
+
   // ─── AI Assist active ────────────────────────────────────────────────────
 
   if (aiAssist) {
     return (
-      <div className="flex flex-col items-center gap-3 py-4">
-        <div className="bg-indigo-900/60 border border-indigo-500 rounded-lg px-4 py-3 text-center w-full">
+      <div className="flex flex-col gap-2 py-2">
+        <div className="bg-indigo-900/60 border border-indigo-500 rounded-lg px-4 py-3 text-center">
           <div className="text-indigo-300 font-bold text-sm mb-1">🤖 AI代打模式</div>
           <div className="text-gray-400 text-xs">移動滑鼠或按任意鍵即可接管</div>
         </div>
-        {onToggleAiAssist && (
-          <button
-            onClick={onToggleAiAssist}
-            className="w-full py-2 bg-indigo-800 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold border border-indigo-600 transition-colors"
-          >
-            停止AI代打
-          </button>
-        )}
+        {aiToggleBtn}
       </div>
     );
   }
@@ -104,6 +111,7 @@ export default function ActionPanel({ state, dispatch, turnDeadline, aiAssist, o
         >
           承受傷害
         </button>
+        {aiToggleBtn}
       </div>
     );
   }
@@ -252,14 +260,7 @@ export default function ActionPanel({ state, dispatch, turnDeadline, aiAssist, o
           />
         )}
 
-        {onToggleAiAssist && (
-          <button
-            onClick={onToggleAiAssist}
-            className="w-full py-2 bg-indigo-900 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-bold border border-indigo-700 transition-colors"
-          >
-            🤖 AI代打
-          </button>
-        )}
+        {aiToggleBtn}
         <button
           onClick={() => dispatch({ type: 'END_PLAY_PHASE' })}
           className="w-full py-2 bg-amber-800 hover:bg-amber-700 text-white rounded-lg font-bold transition-colors border border-amber-600"
@@ -286,6 +287,7 @@ export default function ActionPanel({ state, dispatch, turnDeadline, aiAssist, o
           <CardView key={card.id} card={card} small />
         ))}
       </div>
+      {aiToggleBtn}
     </div>
   );
 }
