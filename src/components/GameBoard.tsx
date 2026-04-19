@@ -10,13 +10,14 @@ interface Props {
   state: GameState;
   dispatch: (action: GameAction) => void;
   onRestart: () => void;
+  turnDeadline?: number | null;
 }
 
 const ROLE_NAME: Record<string, string> = {
   lord: '主公', loyalist: '忠臣', rebel: '反賊', spy: '內奸',
 };
 
-export default function GameBoard({ state, dispatch, onRestart }: Props) {
+export default function GameBoard({ state, dispatch, onRestart, turnDeadline }: Props) {
   const human = state.players.find(p => p.isHuman)!;
   const opponents = state.players.filter(p => !p.isHuman);
   const pa = state.pendingAction;
@@ -160,7 +161,7 @@ export default function GameBoard({ state, dispatch, onRestart }: Props) {
 
         {/* Action panel */}
         <div className="flex-1 bg-black/30 rounded-xl border border-amber-900/30 p-2">
-          <ActionPanel state={state} dispatch={dispatch} />
+          <ActionPanel state={state} dispatch={dispatch} turnDeadline={turnDeadline} />
         </div>
       </div>
 

@@ -13,6 +13,7 @@ export default function LobbyScreen({ onJoined, onBack }: Props) {
   const [playerName, setPlayerName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
+  const [turnTimeLimit, setTurnTimeLimit] = useState(60);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCharList, setShowCharList] = useState(false);
@@ -22,7 +23,7 @@ export default function LobbyScreen({ onJoined, onBack }: Props) {
     setLoading(true);
     setError('');
     const socket = getSocket();
-    socket.emit('create_room', { playerName: playerName.trim(), maxPlayers }, (res) => {
+    socket.emit('create_room', { playerName: playerName.trim(), maxPlayers, turnTimeLimit }, (res) => {
       setLoading(false);
       if (res.error) { setError(res.error); return; }
       onJoined(res.room!);
@@ -86,6 +87,29 @@ export default function LobbyScreen({ onJoined, onBack }: Props) {
             <span className="text-amber-400 font-bold text-lg w-6 text-center">{maxPlayers}</span>
           </div>
           <div className="text-gray-500 text-xs mt-1">{ROLE_DIST_LABEL[maxPlayers]}</div>
+        </div>
+
+        {/* Turn Time Limit */}
+        <div>
+          <label className="text-gray-400 text-sm mb-2 block">每回合出牌時限</label>
+          <div className="flex gap-2">
+            {[0, 30, 60, 90].map(t => (
+              <button
+                key={t}
+                onClick={() => setTurnTimeLimit(t)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                  turnTimeLimit === t
+                    ? 'bg-amber-700 border-amber-500 text-white'
+                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {t === 0 ? '無限制' : `${t}秒`}
+              </button>
+            ))}
+          </div>
+          {turnTimeLimit > 0 && (
+            <div className="text-gray-500 text-xs mt-1">超時由AI代為出牌</div>
+          )}
         </div>
 
         {/* Create Room */}

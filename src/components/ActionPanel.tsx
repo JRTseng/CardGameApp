@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { GameState, Card, Player } from '../types/game';
 import type { GameAction } from '../game/engine';
 import CardView from './CardView';
@@ -8,13 +8,30 @@ import { canPlayCard, cardCanBeSha, cardCanBeShan, needsTarget, attackRange } fr
 interface Props {
   state: GameState;
   dispatch: (action: GameAction) => void;
+  turnDeadline?: number | null;
 }
 
-export default function ActionPanel({ state, dispatch }: Props) {
+function useCountdown(deadline: number | null | undefined): number | null {
+  const [secsLeft, setSecsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!deadline) { setSecsLeft(null); return; }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSecsLeft(left);
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [deadline]);
+  return secsLeft;
+}
+
+export default function ActionPanel({ state, dispatch, turnDeadline }: Props) {
   const currentPlayer = state.players[state.currentPlayerIndex];
   const isHumanTurn = currentPlayer.isHuman;
   const human = state.players.find(p => p.isHuman)!;
   const pa = state.pendingAction;
+  const secsLeft = useCountdown(turnDeadline);
 
   // ─── Human must respond ───────────────────────────────────────────────────
 
@@ -34,7 +51,14 @@ export default function ActionPanel({ state, dispatch }: Props) {
     return (
       <div className="flex flex-col gap-3">
         <div className="bg-orange-900/50 border border-orange-500 rounded-lg p-3">
-          <div className="text-orange-300 font-bold text-sm mb-1">⚔️ 需要回應</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-orange-300 font-bold text-sm">⚔️ 需要回應</div>
+            {secsLeft !== null && (
+              <div className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${secsLeft <= 10 ? 'text-red-400 bg-red-950/60 animate-pulse' : 'text-yellow-400 bg-yellow-950/40'}`}>
+                ⏱ {secsLeft}s
+              </div>
+            )}
+          </div>
           <div className="text-white text-sm">{pa.message}</div>
         </div>
 
@@ -100,6 +124,11 @@ export default function ActionPanel({ state, dispatch }: Props) {
           )}
           <span className="text-teal-400">攻距:{attackRange(currentPlayer, state.players)}</span>
           <span className="text-amber-400">{char.skill.name}</span>
+          {secsLeft !== null && (
+            <span className={`ml-auto font-mono font-bold px-2 py-0.5 rounded ${secsLeft <= 10 ? 'text-red-400 bg-red-950/60 animate-pulse' : 'text-yellow-400 bg-yellow-950/40'}`}>
+              ⏱ {secsLeft}s
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 justify-center">

@@ -25,11 +25,27 @@ const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 app.get('/{*path}', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
 
-// ─── AI scheduling callback ────────────────────────────────────────────────────
+// ─── AI / turn-timer callbacks ────────────────────────────────────────────────
+
+function emitTurnTimer(roomId: string) {
+  const deadline = rooms.getTurnDeadline(roomId);
+  io.to(roomId).emit('turn_timer', { deadline });
+}
 
 function onAIAction(roomId: string) {
-  const state = rooms.triggerAI(roomId, onAIAction);
-  if (state) io.to(roomId).emit('state_update', { state });
+  const state = rooms.triggerAI(roomId, onAIAction, onTurnExpire);
+  if (state) {
+    io.to(roomId).emit('state_update', { state });
+    emitTurnTimer(roomId);
+  }
+}
+
+function onTurnExpire(roomId: string) {
+  const state = rooms.triggerTimeout(roomId, onAIAction, onTurnExpire);
+  if (state) {
+    io.to(roomId).emit('state_update', { state });
+    emitTurnTimer(roomId);
+  }
 }
 
 // ─── Socket events ────────────────────────────────────────────────────────────
@@ -37,9 +53,9 @@ function onAIAction(roomId: string) {
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
-  socket.on('create_room', ({ playerName, maxPlayers }, cb) => {
+  socket.on('create_room', ({ playerName, maxPlayers, turnTimeLimit }, cb) => {
     try {
-      const { roomId, room } = rooms.createRoom(socket.id, playerName, maxPlayers);
+      const { roomId, room } = rooms.createRoom(socket.id, playerName, maxPlayers, turnTimeLimit ?? 60);
       socket.join(roomId);
       console.log(`Room ${roomId} created by ${playerName} (${room.maxPlayers}P)`);
       cb({ roomId, room });
@@ -74,7 +90,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('start_game', ({ roomId }, cb) => {
-    const result = rooms.startGame(roomId, socket.id, onAIAction);
+    const result = rooms.startGame(roomId, socket.id, onAIAction, onTurnExpire);
     if (!result.ok) { cb({ error: result.error }); return; }
 
     // Send personalized game_started to each human player
@@ -83,6 +99,7 @@ io.on('connection', (socket) => {
     });
 
     io.to(roomId).emit('state_update', { state: result.state! });
+    emitTurnTimer(roomId);
     console.log(`Game started in ${roomId}`);
     cb({ ok: true });
   });
@@ -92,7 +109,8 @@ io.on('connection', (socket) => {
     if (result) {
       io.to(roomId).emit('state_update', { state: result.state });
       const room = rooms.rooms.get(roomId);
-      if (room) rooms.scheduleAI(room, onAIAction);
+      if (room) rooms.scheduleAI(room, onAIAction, onTurnExpire);
+      emitTurnTimer(roomId);
     }
   });
 

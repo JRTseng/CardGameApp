@@ -127,11 +127,15 @@ function OnlineGameInstance({
   );
   const [connected, setConnected] = useState(true);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [turnDeadline, setTurnDeadline] = useState<number | null>(null);
   const socket = getSocket();
 
   useEffect(() => {
     const onStateUpdate = ({ state: newState }: { state: GameState }) => {
       setState(personalizeState(newState, myPlayerId));
+    };
+    const onTurnTimer = ({ deadline }: { deadline: number | null }) => {
+      setTurnDeadline(deadline);
     };
     const onDisconnect = () => setConnected(false);
     const onConnect = () => { setConnected(true); setReconnectAttempts(0); };
@@ -141,6 +145,7 @@ function OnlineGameInstance({
     };
 
     socket.on('state_update', onStateUpdate);
+    socket.on('turn_timer', onTurnTimer);
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);
     socket.io.on('reconnect_attempt', onReconnectAttempt);
@@ -148,6 +153,7 @@ function OnlineGameInstance({
 
     return () => {
       socket.off('state_update', onStateUpdate);
+      socket.off('turn_timer', onTurnTimer);
       socket.off('disconnect', onDisconnect);
       socket.off('connect', onConnect);
       socket.io.off('reconnect_attempt', onReconnectAttempt);
@@ -179,7 +185,7 @@ function OnlineGameInstance({
           </div>
         </div>
       )}
-      <GameBoard state={state} dispatch={dispatch} onRestart={onRestart} />
+      <GameBoard state={state} dispatch={dispatch} onRestart={onRestart} turnDeadline={turnDeadline} />
     </div>
   );
 }

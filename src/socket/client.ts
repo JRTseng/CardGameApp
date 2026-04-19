@@ -9,10 +9,11 @@ export interface ServerToClientEvents {
   state_update: (data: { state: GameState }) => void;
   server_error: (data: { message: string }) => void;
   your_role:    (data: { role: Role }) => void;
+  turn_timer:   (data: { deadline: number | null }) => void;
 }
 
 export interface ClientToServerEvents {
-  create_room:   (data: { playerName: string; maxPlayers?: number }, cb: (r: { roomId?: string; room?: RoomState; error?: string }) => void) => void;
+  create_room:   (data: { playerName: string; maxPlayers?: number; turnTimeLimit?: number }, cb: (r: { roomId?: string; room?: RoomState; error?: string }) => void) => void;
   join_room:     (data: { roomId: string; playerName: string }, cb: (r: { ok?: boolean; room?: RoomState; error?: string }) => void) => void;
   select_char:   (data: { roomId: string; characterId: string }) => void;
   reveal_roles:  (data: { roomId: string }, cb: (r: { ok?: boolean; error?: string }) => void) => void;

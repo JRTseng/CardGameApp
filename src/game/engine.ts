@@ -501,7 +501,8 @@ export type GameAction =
   | { type: 'SKILL_QIXI'; targetId: number; cardId: string }
   | { type: 'SKILL_LUOFENG'; cardIds: string[] }
   | { type: 'SKILL_HAOSHI'; targetId: number; cardId: string }
-  | { type: 'AI_ACTION' };
+  | { type: 'AI_ACTION' }
+  | { type: 'TIMEOUT_ACTION' };
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   if (state.gameOver && action.type !== 'AI_ACTION') return state;
@@ -612,6 +613,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'AI_ACTION':
       return handleAIAction(state);
+
+    case 'TIMEOUT_ACTION':
+      return handleTimeoutAction(state);
 
     default:
       return state;
@@ -1486,6 +1490,19 @@ function aiPlayTurn(state: GameState, player: Player): GameState {
   }
 
   return endPlayPhase(s);
+}
+
+function handleTimeoutAction(state: GameState): GameState {
+  if (state.gameOver) return state;
+  if (state.pendingAction) {
+    const actor = state.players.find(p => p.id === state.pendingAction!.actorId);
+    if (!actor) return state;
+    return aiRespond(state, actor);
+  }
+  const current = state.players[state.currentPlayerIndex];
+  if (state.phase === 'discard') return aiDiscard(state, current);
+  if (state.phase !== 'play') return state;
+  return aiPlayTurn(state, current);
 }
 
 function getEnemies(player: Player, players: Player[]): Player[] {

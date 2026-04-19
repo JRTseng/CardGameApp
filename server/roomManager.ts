@@ -20,6 +20,7 @@ export interface RoomPublic {
   status: 'waiting' | 'playing';
   maxPlayers: number;
   rolesAssigned: boolean;
+  turnTimeLimit: number;
 }
 
 interface Room {
@@ -27,9 +28,12 @@ interface Room {
   players: RoomPlayer[];
   status: 'waiting' | 'playing';
   maxPlayers: number;
+  turnTimeLimit: number; // seconds, 0 = no limit
   gameState: GameState | null;
   socketToPlayerId: Map<string, number>;
   aiTimer: ReturnType<typeof setTimeout> | null;
+  turnTimer: ReturnType<typeof setTimeout> | null;
+  turnDeadline: number | null;
   preAssignedRoles?: Role[];
   rolesAssigned: boolean;
 }
@@ -42,7 +46,7 @@ export class RoomManager {
     return Math.random().toString(36).slice(2, 8).toUpperCase();
   }
 
-  createRoom(socketId: string, playerName: string, maxPlayers = 4): { roomId: string; room: RoomPublic } {
+  createRoom(socketId: string, playerName: string, maxPlayers = 4, turnTimeLimit = 60): { roomId: string; room: RoomPublic } {
     const id = this.genId();
     const clamped = Math.max(2, Math.min(15, maxPlayers));
     const room: Room = {
@@ -50,9 +54,12 @@ export class RoomManager {
       players: [{ socketId, name: playerName, characterId: null, isHost: true, isReady: false }],
       status: 'waiting',
       maxPlayers: clamped,
+      turnTimeLimit: Math.max(0, Math.min(300, turnTimeLimit)),
       gameState: null,
       socketToPlayerId: new Map(),
       aiTimer: null,
+      turnTimer: null,
+      turnDeadline: null,
       rolesAssigned: false,
     };
     this.rooms.set(id, room);
@@ -90,6 +97,7 @@ export class RoomManager {
     roomId: string,
     hostSocketId: string,
     onAIAction: (rid: string) => void,
+    onTurnExpire?: (rid: string) => void,
   ): { ok: boolean; state?: GameState; playerMap?: Map<string, number>; error?: string } {
     const room = this.rooms.get(roomId);
     if (!room) return { ok: false, error: '找不到房間' };
@@ -106,7 +114,7 @@ export class RoomManager {
     room.gameState = state;
     room.status = 'playing';
 
-    this.scheduleAI(room, onAIAction);
+    this.scheduleAI(room, onAIAction, onTurnExpire);
     return { ok: true, state, playerMap: room.socketToPlayerId };
   }
 
@@ -122,12 +130,16 @@ export class RoomManager {
     const allowed = (!pa && current.id === playerId) || (pa && pa.actorId === playerId);
     if (!allowed) return null;
 
+    // Clear turn timer on human action
+    if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
+    room.turnDeadline = null;
+
     const newState = gameReducer(state, action);
     room.gameState = newState;
     return { state: newState };
   }
 
-  scheduleAI(room: Room, onAIAction: (rid: string) => void): void {
+  scheduleAI(room: Room, onAIAction: (rid: string) => void, onTurnExpire?: (rid: string) => void): void {
     if (room.aiTimer) clearTimeout(room.aiTimer);
     if (!room.gameState || room.gameState.gameOver) return;
 
@@ -136,20 +148,46 @@ export class RoomManager {
     const current = state.players[state.currentPlayerIndex];
     const isHuman = (id: number) => [...room.socketToPlayerId.values()].includes(id);
 
+    const actorId = pa ? pa.actorId : current.id;
     const needsAI =
       (pa && !isHuman(pa.actorId)) ||
       (!pa && (state.phase === 'play' || state.phase === 'discard') && !isHuman(current.id));
 
-    if (!needsAI) return;
-    room.aiTimer = setTimeout(() => onAIAction(room.id), 700);
+    if (needsAI) {
+      room.aiTimer = setTimeout(() => onAIAction(room.id), 700);
+      return;
+    }
+
+    // Human turn — start the turn timer if configured
+    if (onTurnExpire && room.turnTimeLimit > 0 && isHuman(actorId)) {
+      if (room.turnTimer) clearTimeout(room.turnTimer);
+      room.turnDeadline = Date.now() + room.turnTimeLimit * 1000;
+      room.turnTimer = setTimeout(() => {
+        room.turnTimer = null;
+        room.turnDeadline = null;
+        onTurnExpire(room.id);
+      }, room.turnTimeLimit * 1000);
+    }
   }
 
-  triggerAI(roomId: string, onAIAction: (rid: string) => void): GameState | null {
+  triggerAI(roomId: string, onAIAction: (rid: string) => void, onTurnExpire?: (rid: string) => void): GameState | null {
     const room = this.rooms.get(roomId);
     if (!room?.gameState) return null;
     room.gameState = gameReducer(room.gameState, { type: 'AI_ACTION' });
-    this.scheduleAI(room, onAIAction);
+    this.scheduleAI(room, onAIAction, onTurnExpire);
     return room.gameState;
+  }
+
+  triggerTimeout(roomId: string, onAIAction: (rid: string) => void, onTurnExpire: (rid: string) => void): GameState | null {
+    const room = this.rooms.get(roomId);
+    if (!room?.gameState) return null;
+    room.gameState = gameReducer(room.gameState, { type: 'TIMEOUT_ACTION' });
+    this.scheduleAI(room, onAIAction, onTurnExpire);
+    return room.gameState;
+  }
+
+  getTurnDeadline(roomId: string): number | null {
+    return this.rooms.get(roomId)?.turnDeadline ?? null;
   }
 
   handleDisconnect(socketId: string, onAIAction: (rid: string) => void): Array<{ roomId: string; pub: RoomPublic; gameState?: GameState }> {
@@ -169,6 +207,8 @@ export class RoomManager {
     // Replace with AI
     const playerId = room.socketToPlayerId.get(socketId);
     room.socketToPlayerId.delete(socketId);
+    if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
+    room.turnDeadline = null;
     if (playerId !== undefined && room.gameState) {
       room.gameState = {
         ...room.gameState,
@@ -198,7 +238,7 @@ export class RoomManager {
   }
 
   toPublic(room: Room): RoomPublic {
-    return { id: room.id, players: room.players, status: room.status, maxPlayers: room.maxPlayers, rolesAssigned: room.rolesAssigned };
+    return { id: room.id, players: room.players, status: room.status, maxPlayers: room.maxPlayers, rolesAssigned: room.rolesAssigned, turnTimeLimit: room.turnTimeLimit };
   }
 }
 
