@@ -129,6 +129,7 @@ function OnlineGameInstance({
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [turnDeadline, setTurnDeadline] = useState<number | null>(null);
   const [aiAssist, setAiAssist] = useState(false);
+  const [aiAssistPlayerIds, setAiAssistPlayerIds] = useState<number[]>([]);
   const socket = getSocket();
 
   // Dispatch helper — sends to server and updates local state optimistically
@@ -146,6 +147,7 @@ function OnlineGameInstance({
       setTurnDeadline(deadline);
     };
     const onAiTakeover = () => setAiAssist(true);
+    const onAiAssistUpdate = ({ playerIds }: { playerIds: number[] }) => setAiAssistPlayerIds(playerIds);
     const onDisconnect = () => setConnected(false);
     const onConnect = () => { setConnected(true); setReconnectAttempts(0); };
     const onReconnectAttempt = (n: number) => setReconnectAttempts(n);
@@ -154,6 +156,7 @@ function OnlineGameInstance({
     socket.on('state_update', onStateUpdate);
     socket.on('turn_timer', onTurnTimer);
     socket.on('ai_takeover', onAiTakeover);
+    socket.on('ai_assist_update', onAiAssistUpdate);
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);
     socket.io.on('reconnect_attempt', onReconnectAttempt);
@@ -163,6 +166,7 @@ function OnlineGameInstance({
       socket.off('state_update', onStateUpdate);
       socket.off('turn_timer', onTurnTimer);
       socket.off('ai_takeover', onAiTakeover);
+      socket.off('ai_assist_update', onAiAssistUpdate);
       socket.off('disconnect', onDisconnect);
       socket.off('connect', onConnect);
       socket.io.off('reconnect_attempt', onReconnectAttempt);
@@ -182,6 +186,11 @@ function OnlineGameInstance({
     const t = setTimeout(() => dispatch({ type: 'TIMEOUT_ACTION' }), 300);
     return () => clearTimeout(t);
   }, [state, aiAssist]);
+
+  // Sync aiAssist changes to server
+  useEffect(() => {
+    socket.emit('set_ai_assist', { active: aiAssist });
+  }, [aiAssist]);
 
   // Any mouse/keyboard interaction disables AI assist
   useEffect(() => {
@@ -221,6 +230,7 @@ function OnlineGameInstance({
         turnDeadline={aiAssist ? null : turnDeadline}
         aiAssist={aiAssist}
         onToggleAiAssist={() => setAiAssist(v => !v)}
+        aiAssistPlayerIds={aiAssistPlayerIds}
       />
     </div>
   );

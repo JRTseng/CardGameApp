@@ -42,15 +42,23 @@ function onAIAction(roomId: string) {
 
 function onTurnExpire(roomId: string) {
   const room = rooms.rooms.get(roomId);
+  // Mark the timed-out player as ai-assisted before triggering action
+  if (room?.gameState) {
+    const { gameState: gs } = room;
+    const pa = gs.pendingAction;
+    const actorId = pa ? pa.actorId : gs.players[gs.currentPlayerIndex].id;
+    room.aiAssistPlayers.add(actorId);
+  }
   const state = rooms.triggerTimeout(roomId, onAIAction, onTurnExpire);
   if (state) {
     io.to(roomId).emit('state_update', { state });
     emitTurnTimer(roomId);
-    // Notify human players in this room to enter AI assist mode
+    // Notify human players to enter AI assist mode in their client
     if (room) {
       for (const sid of room.socketToPlayerId.keys()) {
         io.to(sid).emit('ai_takeover');
       }
+      io.to(roomId).emit('ai_assist_update', { playerIds: rooms.getAiAssistPlayerIds(roomId) });
     }
   }
 }
@@ -121,12 +129,21 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('set_ai_assist', ({ active }: { active: boolean }) => {
+    const result = rooms.setAiAssist(socket.id, active);
+    if (result) {
+      io.to(result.roomId).emit('ai_assist_update', { playerIds: result.aiAssistPlayerIds });
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`[-] ${socket.id}`);
     const affected = rooms.handleDisconnect(socket.id, onAIAction);
     affected.forEach(({ roomId, pub, gameState }) => {
       io.to(roomId).emit('room_update', { room: pub });
       if (gameState) io.to(roomId).emit('state_update', { state: gameState });
+      // Broadcast cleared AI assist state
+      io.to(roomId).emit('ai_assist_update', { playerIds: rooms.getAiAssistPlayerIds(roomId) });
     });
   });
 });

@@ -34,6 +34,7 @@ interface Room {
   aiTimer: ReturnType<typeof setTimeout> | null;
   turnTimer: ReturnType<typeof setTimeout> | null;
   turnDeadline: number | null;
+  aiAssistPlayers: Set<number>; // playerIds currently in AI assist mode
   preAssignedRoles?: Role[];
   rolesAssigned: boolean;
 }
@@ -60,6 +61,7 @@ export class RoomManager {
       aiTimer: null,
       turnTimer: null,
       turnDeadline: null,
+      aiAssistPlayers: new Set(),
       rolesAssigned: false,
     };
     this.rooms.set(id, room);
@@ -190,6 +192,22 @@ export class RoomManager {
     return this.rooms.get(roomId)?.turnDeadline ?? null;
   }
 
+  setAiAssist(socketId: string, active: boolean): { roomId: string; aiAssistPlayerIds: number[] } | null {
+    const roomId = this.socketToRoom.get(socketId);
+    if (!roomId) return null;
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+    const playerId = room.socketToPlayerId.get(socketId);
+    if (playerId === undefined) return null;
+    if (active) room.aiAssistPlayers.add(playerId);
+    else room.aiAssistPlayers.delete(playerId);
+    return { roomId, aiAssistPlayerIds: [...room.aiAssistPlayers] };
+  }
+
+  getAiAssistPlayerIds(roomId: string): number[] {
+    return [...(this.rooms.get(roomId)?.aiAssistPlayers ?? [])];
+  }
+
   handleDisconnect(socketId: string, onAIAction: (rid: string) => void): Array<{ roomId: string; pub: RoomPublic; gameState?: GameState }> {
     const roomId = this.socketToRoom.get(socketId);
     if (!roomId) return [];
@@ -209,6 +227,7 @@ export class RoomManager {
     room.socketToPlayerId.delete(socketId);
     if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
     room.turnDeadline = null;
+    if (playerId !== undefined) room.aiAssistPlayers.delete(playerId);
     if (playerId !== undefined && room.gameState) {
       room.gameState = {
         ...room.gameState,

@@ -13,13 +13,14 @@ interface Props {
   turnDeadline?: number | null;
   aiAssist?: boolean;
   onToggleAiAssist?: () => void;
+  aiAssistPlayerIds?: number[];
 }
 
 const ROLE_NAME: Record<string, string> = {
   lord: '主公', loyalist: '忠臣', rebel: '反賊', spy: '內奸',
 };
 
-export default function GameBoard({ state, dispatch, onRestart, turnDeadline, aiAssist, onToggleAiAssist }: Props) {
+export default function GameBoard({ state, dispatch, onRestart, turnDeadline, aiAssist, onToggleAiAssist, aiAssistPlayerIds = [] }: Props) {
   const human = state.players.find(p => p.isHuman)!;
   const opponents = state.players.filter(p => !p.isHuman);
   const pa = state.pendingAction;
@@ -68,6 +69,7 @@ export default function GameBoard({ state, dispatch, onRestart, turnDeadline, ai
         isCurrentTurn={state.players[state.currentPlayerIndex].id === player.id}
         isTargetable={targetableIds.has(player.id)}
         isPending={pa?.actorId === player.id}
+        isAiAssist={aiAssistPlayerIds.includes(player.id)}
         onTarget={() => {
           if (targetableIds.has(player.id) && state.selectedCardId) {
             dispatch({ type: 'PLAY_CARD_ON_TARGET', targetId: player.id });
@@ -157,6 +159,7 @@ export default function GameBoard({ state, dispatch, onRestart, turnDeadline, ai
             isCurrentTurn={state.players[state.currentPlayerIndex].id === human.id}
             isTargetable={false}
             isPending={pa?.actorId === human.id}
+            isAiAssist={aiAssistPlayerIds.includes(human.id)}
             onTarget={() => {}}
           />
         </div>

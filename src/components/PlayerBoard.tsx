@@ -7,6 +7,7 @@ interface Props {
   isTargetable: boolean;
   isPending: boolean;
   compact?: boolean;
+  isAiAssist?: boolean;
   onTarget: () => void;
 }
 
@@ -35,7 +36,7 @@ const KINGDOM_LABEL: Record<string, string> = {
   wei: '魏', shu: '蜀', wu: '吳', neutral: '中',
 };
 
-export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPending, compact, onTarget }: Props) {
+export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPending, compact, isAiAssist, onTarget }: Props) {
   const char = player.character;
   const borderColor = KINGDOM_COLORS[char.kingdom] ?? 'border-gray-500 bg-gray-950';
   const isDead = !player.isAlive;
@@ -88,6 +89,9 @@ export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPen
         )}
         {isPending && (
           <div className="absolute -top-2 right-1 text-[9px] bg-orange-500 text-white px-0.5 rounded font-bold">⏳</div>
+        )}
+        {isAiAssist && (
+          <div className="absolute -top-2 left-1 text-[9px] bg-indigo-600 text-white px-1 rounded font-bold">🤖代打</div>
         )}
 
         {/* Portrait + Name */}
@@ -161,6 +165,12 @@ export default function PlayerBoard({ player, isCurrentTurn, isTargetable, isPen
       {isPending && (
         <div className="absolute -top-2 right-2 text-xs bg-orange-500 text-white px-1 rounded font-bold">
           ⏳
+        </div>
+      )}
+
+      {isAiAssist && (
+        <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs bg-indigo-600 text-white px-1.5 rounded font-bold whitespace-nowrap">
+          🤖 代打
         </div>
       )}
 
