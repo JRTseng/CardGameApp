@@ -10,6 +10,7 @@ export interface ServerToClientEvents {
   server_error: (data: { message: string }) => void;
   your_role:    (data: { role: Role }) => void;
   turn_timer:   (data: { deadline: number | null }) => void;
+  ai_takeover:  () => void;
 }
 
 export interface ClientToServerEvents {

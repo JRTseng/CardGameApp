@@ -9,6 +9,8 @@ interface Props {
   state: GameState;
   dispatch: (action: GameAction) => void;
   turnDeadline?: number | null;
+  aiAssist?: boolean;
+  onToggleAiAssist?: () => void;
 }
 
 function useCountdown(deadline: number | null | undefined): number | null {
@@ -26,12 +28,33 @@ function useCountdown(deadline: number | null | undefined): number | null {
   return secsLeft;
 }
 
-export default function ActionPanel({ state, dispatch, turnDeadline }: Props) {
+export default function ActionPanel({ state, dispatch, turnDeadline, aiAssist, onToggleAiAssist }: Props) {
   const currentPlayer = state.players[state.currentPlayerIndex];
   const isHumanTurn = currentPlayer.isHuman;
   const human = state.players.find(p => p.isHuman)!;
   const pa = state.pendingAction;
   const secsLeft = useCountdown(turnDeadline);
+
+  // ─── AI Assist active ────────────────────────────────────────────────────
+
+  if (aiAssist) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-4">
+        <div className="bg-indigo-900/60 border border-indigo-500 rounded-lg px-4 py-3 text-center w-full">
+          <div className="text-indigo-300 font-bold text-sm mb-1">🤖 AI代打模式</div>
+          <div className="text-gray-400 text-xs">移動滑鼠或按任意鍵即可接管</div>
+        </div>
+        {onToggleAiAssist && (
+          <button
+            onClick={onToggleAiAssist}
+            className="w-full py-2 bg-indigo-800 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold border border-indigo-600 transition-colors"
+          >
+            停止AI代打
+          </button>
+        )}
+      </div>
+    );
+  }
 
   // ─── Human must respond ───────────────────────────────────────────────────
 
@@ -229,6 +252,14 @@ export default function ActionPanel({ state, dispatch, turnDeadline }: Props) {
           />
         )}
 
+        {onToggleAiAssist && (
+          <button
+            onClick={onToggleAiAssist}
+            className="w-full py-2 bg-indigo-900 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-bold border border-indigo-700 transition-colors"
+          >
+            🤖 AI代打
+          </button>
+        )}
         <button
           onClick={() => dispatch({ type: 'END_PLAY_PHASE' })}
           className="w-full py-2 bg-amber-800 hover:bg-amber-700 text-white rounded-lg font-bold transition-colors border border-amber-600"

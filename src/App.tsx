@@ -128,8 +128,16 @@ function OnlineGameInstance({
   const [connected, setConnected] = useState(true);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [turnDeadline, setTurnDeadline] = useState<number | null>(null);
+  const [aiAssist, setAiAssist] = useState(false);
   const socket = getSocket();
 
+  // Dispatch helper — sends to server and updates local state optimistically
+  const dispatch = useCallback((action: GameAction) => {
+    setState(prev => personalizeState(gameReducer(prev, action), myPlayerId));
+    socket.emit('player_action', { roomId, action });
+  }, [roomId, myPlayerId]);
+
+  // Socket event listeners
   useEffect(() => {
     const onStateUpdate = ({ state: newState }: { state: GameState }) => {
       setState(personalizeState(newState, myPlayerId));
@@ -137,15 +145,15 @@ function OnlineGameInstance({
     const onTurnTimer = ({ deadline }: { deadline: number | null }) => {
       setTurnDeadline(deadline);
     };
+    const onAiTakeover = () => setAiAssist(true);
     const onDisconnect = () => setConnected(false);
     const onConnect = () => { setConnected(true); setReconnectAttempts(0); };
     const onReconnectAttempt = (n: number) => setReconnectAttempts(n);
-    const onError = ({ message }: { message: string }) => {
-      console.error('Server error:', message);
-    };
+    const onError = ({ message }: { message: string }) => console.error('Server error:', message);
 
     socket.on('state_update', onStateUpdate);
     socket.on('turn_timer', onTurnTimer);
+    socket.on('ai_takeover', onAiTakeover);
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);
     socket.io.on('reconnect_attempt', onReconnectAttempt);
@@ -154,6 +162,7 @@ function OnlineGameInstance({
     return () => {
       socket.off('state_update', onStateUpdate);
       socket.off('turn_timer', onTurnTimer);
+      socket.off('ai_takeover', onAiTakeover);
       socket.off('disconnect', onDisconnect);
       socket.off('connect', onConnect);
       socket.io.off('reconnect_attempt', onReconnectAttempt);
@@ -161,10 +170,30 @@ function OnlineGameInstance({
     };
   }, [myPlayerId]);
 
-  const dispatch = useCallback((action: GameAction) => {
-    setState(prev => personalizeState(gameReducer(prev, action), myPlayerId));
-    socket.emit('player_action', { roomId, action });
-  }, [roomId, myPlayerId]);
+  // AI assist auto-play: immediately act when it's human's turn
+  useEffect(() => {
+    if (!aiAssist || state.gameOver) return;
+    const pa = state.pendingAction;
+    const current = state.players[state.currentPlayerIndex];
+    const isMyAction =
+      (pa && state.players.find(p => p.id === pa.actorId)?.isHuman) ||
+      (!pa && (state.phase === 'play' || state.phase === 'discard') && current.isHuman);
+    if (!isMyAction) return;
+    const t = setTimeout(() => dispatch({ type: 'TIMEOUT_ACTION' }), 300);
+    return () => clearTimeout(t);
+  }, [state, aiAssist]);
+
+  // Any mouse/keyboard interaction disables AI assist
+  useEffect(() => {
+    if (!aiAssist) return;
+    const disable = () => setAiAssist(false);
+    window.addEventListener('mousedown', disable, { once: true });
+    window.addEventListener('keydown', disable, { once: true });
+    return () => {
+      window.removeEventListener('mousedown', disable);
+      window.removeEventListener('keydown', disable);
+    };
+  }, [aiAssist]);
 
   return (
     <div className="relative">
@@ -185,7 +214,14 @@ function OnlineGameInstance({
           </div>
         </div>
       )}
-      <GameBoard state={state} dispatch={dispatch} onRestart={onRestart} turnDeadline={turnDeadline} />
+      <GameBoard
+        state={state}
+        dispatch={dispatch}
+        onRestart={onRestart}
+        turnDeadline={aiAssist ? null : turnDeadline}
+        aiAssist={aiAssist}
+        onToggleAiAssist={() => setAiAssist(v => !v)}
+      />
     </div>
   );
 }

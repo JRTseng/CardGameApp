@@ -41,10 +41,17 @@ function onAIAction(roomId: string) {
 }
 
 function onTurnExpire(roomId: string) {
+  const room = rooms.rooms.get(roomId);
   const state = rooms.triggerTimeout(roomId, onAIAction, onTurnExpire);
   if (state) {
     io.to(roomId).emit('state_update', { state });
     emitTurnTimer(roomId);
+    // Notify human players in this room to enter AI assist mode
+    if (room) {
+      for (const sid of room.socketToPlayerId.keys()) {
+        io.to(sid).emit('ai_takeover');
+      }
+    }
   }
 }
 
