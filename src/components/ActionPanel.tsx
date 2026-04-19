@@ -278,14 +278,18 @@ export default function ActionPanel({ state, dispatch, turnDeadline, aiAssist, o
     : currentPlayer;
 
   return (
-    <div className="flex flex-col items-center gap-3 py-4">
-      <div className="text-gray-400 text-sm animate-pulse">
+    <div className="flex flex-col gap-2">
+      <div className="text-gray-400 text-sm animate-pulse text-center">
         等待 {actingPlayer?.name ?? 'AI'} 行動...
       </div>
-      <div className="flex flex-wrap gap-1 justify-center opacity-50">
+      <div className="text-xs text-gray-500 px-1">你的手牌</div>
+      <div className="flex flex-wrap gap-2 justify-center">
         {human.hand.map(card => (
-          <CardView key={card.id} card={card} small />
+          <CardView key={card.id} card={card} />
         ))}
+        {human.hand.length === 0 && (
+          <div className="text-gray-600 text-sm py-2">手牌已空</div>
+        )}
       </div>
       {aiToggleBtn}
     </div>
